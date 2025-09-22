@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\WeekStatusUpdated;
 use App\Models\User;
+use App\Models\ChatMessage;
+use App\Models\Poll;
+use App\Models\Vote;
 use App\Models\UserDayStatus;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -39,12 +43,44 @@ class WeekStatusController extends Controller
             ->get()
             ->groupBy('user_id');
 
+        // Load chat messages for this week, but only those from today before 13:15 are visible
+        $today = $now->clone();
+        $resetAt = $today->clone()->setTime(13, 15);
+        $startOfDay = $today->clone()->startOfDay();
+        $windowStart = $now->greaterThanOrEqualTo($resetAt) ? $resetAt : $startOfDay;
+        $chatQuery = ChatMessage::query()
+            ->with(['user:id,name'])
+            ->where('iso_week', $week)
+            ->where('created_at', '>=', $windowStart);
+        $chatMessages = $chatQuery->latest('id')->limit(100)->get()->reverse()->values();
+
+        $poll = null;
+        $userVote = null;
+        $isVotingOpen = null;
+        if (config('app.env') !== 'production') {
+            // Optional: could be heavy; rely on dedicated poll page otherwise
+        }
+        $todayDate = $now->toDateString();
+        $poll = Poll::query()->whereDate('poll_date', $todayDate)->with(['options' => function ($q) {
+            $q->orderBy('vote_count', 'desc');
+        }])->first();
+        if ($poll) {
+            if ($request->user()) {
+                $userVote = Vote::query()->where('user_id', $request->user()->id)->where('poll_id', $poll->id)->first();
+            }
+            $isVotingOpen = $poll->isVotingOpen();
+        }
+
         return Inertia::render('week-status/index', [
             'week' => $week,
             'activeWeekday' => $now->dayOfWeekIso >= 1 && $now->dayOfWeekIso <= 5 ? $now->dayOfWeekIso : 1,
             'users' => $users,
             'statuses' => $statuses,
             'canEditUserId' => (int) $request->user()->id,
+            'chatMessages' => $chatMessages,
+            'poll' => $poll,
+            'userVote' => $userVote,
+            'isVotingOpen' => $isVotingOpen,
         ]);
     }
 
@@ -60,7 +96,7 @@ class WeekStatusController extends Controller
 
         $userId = (int) $request->user()->id;
 
-        UserDayStatus::updateOrCreate(
+        $record = UserDayStatus::updateOrCreate(
             [
                 'user_id' => $userId,
                 'iso_week' => $request->string('iso_week')->toString(),
@@ -72,7 +108,14 @@ class WeekStatusController extends Controller
                 'location' => $request->input('location'),
             ]
         );
-
+        event(new WeekStatusUpdated(
+            isoWeek: $record->iso_week,
+            userId: $record->user_id,
+            weekday: $record->weekday,
+            status: $record->status,
+            arrivalTime: $record->arrival_time,
+            location: $record->location,
+        ));
         return back();
     }
 
@@ -85,12 +128,21 @@ class WeekStatusController extends Controller
 
         $userId = (int) $request->user()->id;
 
-        UserDayStatus::query()
+        $deleted = UserDayStatus::query()
             ->where('user_id', $userId)
             ->where('iso_week', $request->string('iso_week')->toString())
             ->where('weekday', (int) $request->integer('weekday'))
             ->delete();
-
+        if ($deleted > 0) {
+            event(new WeekStatusUpdated(
+                isoWeek: $request->string('iso_week')->toString(),
+                userId: $userId,
+                weekday: (int) $request->integer('weekday'),
+                status: null,
+                arrivalTime: null,
+                location: null,
+            ));
+        }
         return back();
     }
 }

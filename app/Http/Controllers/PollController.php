@@ -95,6 +95,41 @@ class PollController extends Controller
         return back()->with('success', 'Your vote has been recorded!');
     }
 
+    public function storeFromChat(Request $request)
+    {
+        $validated = $request->validate([
+            'options' => ['required', 'array', 'min:1'],
+            'options.*' => ['required', 'string', 'max:120'],
+        ]);
+
+        $today = now()->toDateString();
+        $existing = Poll::whereDate('poll_date', $today)->first();
+        if ($existing) {
+            return back()->withErrors(['poll' => 'A poll for today already exists.']);
+        }
+
+        $poll = Poll::create([
+            'poll_date' => $today,
+            'deadline' => '11:00:00',
+            'is_active' => true,
+        ]);
+
+        foreach ($validated['options'] as $name) {
+            $trimmed = trim($name);
+            if ($trimmed === '') {
+                continue;
+            }
+            PollOption::create([
+                'poll_id' => $poll->id,
+                'name' => $trimmed,
+                'description' => null,
+                'vote_count' => 0,
+            ]);
+        }
+
+        return back();
+    }
+
     private function addDefaultOptions(Poll $poll): void
     {
         // Create default lunch options

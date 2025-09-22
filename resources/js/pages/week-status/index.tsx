@@ -1,4 +1,5 @@
 import React from 'react';
+// Using global Echo instance configured in app.tsx
 import { Head, usePage, router } from '@inertiajs/react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { Icon } from '@/components/ui/icon';
-import { Copy as CopyIcon, ClipboardPaste as PasteIcon, Eraser as EraserIcon, CalendarRange as CalendarRangeIcon } from 'lucide-react';
+import { Copy as CopyIcon, ClipboardPaste as PasteIcon, Eraser as EraserIcon, CalendarRange as CalendarRangeIcon, Check as CheckIcon, Plus as PlusIcon, X as XIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/layouts/app-layout';
 import { BreadcrumbItem } from '@/types';
@@ -40,6 +41,10 @@ type PageProps = {
     users: Array<{ id: number; name: string; email: string }>;
     statuses: Record<string, Array<UserDayRow>>;
     canEditUserId: number;
+    chatMessages?: Array<{ id: number; body: string; created_at: string; user: { id: number; name: string } }>;
+    poll?: { id: number; options: Array<{ id: number; name: string; description?: string; vote_count: number }> };
+    userVote?: { id: number; poll_option_id: number } | null;
+    isVotingOpen?: boolean;
 };
 
 type UserWithAvatar = PageProps['users'][number] & { avatar?: string };
@@ -101,6 +106,12 @@ function buildBreadcrumbs(t: (key: string, fallback?: string) => string): Breadc
     ];
 }
 
+function getUserAvatarUrl(users: Array<{ id: number; name: string; email: string }> , userId: number): string | undefined {
+    const u = (users as Array<UserWithAvatar>).find((x) => x.id === userId) as UserWithAvatar | undefined;
+    if (!u || !u.avatar) return undefined;
+    return (u.avatar as string).startsWith('http') ? (u.avatar as string) : `/storage/${u.avatar}`;
+}
+
 function getDateFromIsoWeek(isoWeek: string, weekday: number): Date {
     // isoWeek format: YYYY-Www
     const [yearStr, weekPart] = isoWeek.split('-W');
@@ -129,7 +140,13 @@ function isSameLocalDate(a: Date, b: Date): boolean {
 }
 
 export default function WeekStatusIndex() {
-    const { week, users, statuses, canEditUserId, activeWeekday } = usePage<PageProps>().props;
+    const { week, users, statuses, canEditUserId, activeWeekday, chatMessages, poll, userVote, isVotingOpen } = usePage<PageProps>().props;
+    const [liveStatuses, setLiveStatuses] = React.useState<PageProps['statuses']>(statuses);
+    const [messages, setMessages] = React.useState<Array<{ id: number; body: string; created_at: string; user: { id: number; name: string } }>>(chatMessages ?? []);
+    const [chatInput, setChatInput] = React.useState<string>('');
+    const [creatingPoll, setCreatingPoll] = React.useState<boolean>(false);
+    const [pollOptions, setPollOptions] = React.useState<string[]>(['', '', '']);
+    const echo = (window as any).Echo as any;
     // Removed global processing state for seamless UX
     const [draftLocations, setDraftLocations] = React.useState<Record<string, string>>({});
     const locationDebounceRef = React.useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -151,6 +168,54 @@ export default function WeekStatusIndex() {
     }, [week]);
 
     // (kept helper here earlier; removed as unused after switching to day-only mobile navigation)
+
+    // Keep a local copy of statuses to avoid full page-like refreshes
+    React.useEffect(() => {
+        setLiveStatuses(statuses);
+    }, [statuses, week]);
+
+    React.useEffect(() => {
+        // Subscribe to broadcast updates for this ISO week
+        const channelName = `week-status.${week}`;
+        const unsubscribe = () => {
+            try {
+                if (echo) {
+                    echo.leave(channelName);
+                }
+            } catch (_) {
+                // no-op
+            }
+        };
+        if (echo && typeof echo.channel === 'function') {
+            type UpdatePayload = { userId: number; weekday: number; status: StatusValue; arrivalTime: string | null; location: string | null };
+            echo.channel(channelName).listen('.WeekStatusUpdated', (e: UpdatePayload) => {
+                setLiveStatuses((prev) => {
+                    const userKey = String(e.userId);
+                    const rows = Array.isArray(prev[userKey]) ? [...prev[userKey]] : [];
+                    const idx = rows.findIndex((r) => r.weekday === e.weekday);
+                    const isClear = e.status === null && e.arrivalTime === null && e.location === null;
+                    if (isClear) {
+                        if (idx !== -1) rows.splice(idx, 1);
+                    } else {
+                        const nextRow: UserDayRow = {
+                            id: idx !== -1 ? rows[idx].id : Date.now(),
+                            user_id: e.userId,
+                            weekday: e.weekday,
+                            status: e.status,
+                            arrival_time: e.arrivalTime,
+                            location: e.location,
+                        };
+                        if (idx !== -1) rows[idx] = nextRow; else rows.push(nextRow);
+                    }
+                    return { ...prev, [userKey]: rows };
+                });
+            });
+            echo.channel(channelName).listen('.ChatMessagePosted', (e: { id: number; body: string; created_at: string; user: { id: number; name: string } }) => {
+                setMessages((prev) => [...prev, e]);
+            });
+        }
+        return unsubscribe;
+    }, [week]);
 
     function submitUpdate(weekday: number, status: StatusValue, arrival_time: string | null, location: string | null) {
         router.post('/week-status',
@@ -410,7 +475,7 @@ export default function WeekStatusIndex() {
                                             </div>
                                         </TableCell>
                                         {weekdays.map((d) => {
-                                            const current = getUserDay(statuses, u.id, d.value);
+                                            const current = getUserDay(liveStatuses, u.id, d.value);
                                             const isSelf = u.id === canEditUserId;
                                             const value: StatusValue = current?.status ?? null;
                                             const timeValue = current?.arrival_time ?? '';
@@ -460,7 +525,7 @@ export default function WeekStatusIndex() {
                                                                         </div>
                                                                     ) : (
                                                                         value ? (
-                                                                            <Badge variant={getStatusBadgeVariant(value)} className={`${getStatusBadgeClass(value)} ${getBadgeSizeClass(value)}`}>{
+                                                                            <Badge variant={getStatusBadgeVariant(value)} className={`${getStatusBadgeClass(value)} ${getBadgeSizeClass()}`}>{
                                                                                 value === 'Lunchbox' ? t('Lunchbox', 'Lunchbox') : value === 'Buying' ? t('Buying', 'Buying') : t('Home', 'Home')
                                                                             }</Badge>
                                                                         ) : (
@@ -710,7 +775,7 @@ export default function WeekStatusIndex() {
                                                             <div className="flex-1 flex flex-col gap-1.5 group-hover:flex-[0_0_calc(100%-2.5rem)]">
                                                                 <div className="space-y-2">
                                                                     {value && (
-                                                                        <Badge variant={getStatusBadgeVariant(value)} className={`${getStatusBadgeClass(value)} ${getBadgeSizeClass(value)} font-semibold w-full justify-start`}>
+                                                                        <Badge variant={getStatusBadgeVariant(value)} className={`${getStatusBadgeClass(value)} ${getBadgeSizeClass()} font-semibold w-full justify-start`}>
                                                                             {value === 'Lunchbox' ? t('Lunchbox', 'Lunchbox') : value === 'Buying' ? t('Buying', 'Buying') : t('Home', 'Home')}
                                                                         </Badge>
                                                                     )}
@@ -756,6 +821,125 @@ export default function WeekStatusIndex() {
                         </Table>
                     </div>
                 </div>
+            {/* Chat */}
+            <div className="mt-4 rounded-md border">
+                <div className="p-2 text-sm font-semibold">{t('Chat', 'Chat')}</div>
+                <div className="p-2 max-h-60 overflow-y-auto space-y-2 pr-1">
+                    {messages && messages.length > 0 ? (
+                        messages.map((m) => (
+                            <div key={m.id} className="text-sm flex items-start gap-2">
+                                <Avatar className="h-6 w-6 overflow-hidden rounded-full shrink-0 mt-0.5">
+                                    <AvatarImage src={getUserAvatarUrl(users, m.user.id)} alt={m.user.name} />
+                                    <AvatarFallback className="rounded-full bg-neutral-200 text-black dark:bg-neutral-700 dark:text-white text-[10px]">
+                                        {getInitials(m.user.name)}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">{m.user.name}</span>
+                                        <span className="text-muted-foreground">{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                    <div className="break-words whitespace-pre-wrap">{m.body}</div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-sm text-muted-foreground">{t('No messages yet.', 'No messages yet.')}</div>
+                    )}
+                </div>
+                <form
+                    className="p-2 pt-0 flex gap-2"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        const body = chatInput.trim();
+                        if (!body) return;
+                        router.post(
+                            '/week-status/chat',
+                            { iso_week: week, body },
+                            {
+                                preserveScroll: true,
+                                onSuccess: () => setChatInput(''),
+                                onError: () => toast.error(t('Failed to send.', 'Failed to send.')),
+                            }
+                        );
+                    }}
+                >
+                    <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder={t('Type a message…', 'Type a message…')}
+                        className="flex-1 h-9 rounded-md border bg-background px-2 text-sm"
+                    />
+                    <Button type="submit" className="h-9">{t('Send', 'Send')}</Button>
+                </form>
+                {/* Poll inside chat */}
+                {!poll && (
+                    <div className="p-2 pt-0">
+                        {creatingPoll ? (
+                            <form
+                                className="space-y-2"
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const options = pollOptions.map((o) => o.trim()).filter(Boolean);
+                                    if (options.length === 0) return;
+                                    router.post('/poll/store-from-chat', { options }, {
+                                        preserveScroll: true,
+                                        onSuccess: () => { setCreatingPoll(false); setPollOptions(['', '', '']); },
+                                        onError: () => toast.error(t('Failed to create poll.', 'Failed to create poll.')),
+                                    });
+                                }}
+                            >
+                                <div className="text-sm font-semibold">{t("Create today's poll", "Create today's poll")}</div>
+                                {pollOptions.map((opt, i) => (
+                                    <input key={i} type="text" value={opt} onChange={(e) => {
+                                        const next = [...pollOptions];
+                                        next[i] = e.target.value;
+                                        setPollOptions(next);
+                                    }} placeholder={t('Option', 'Option') + ' ' + (i + 1)} className="w-full h-9 rounded-md border bg-background px-2 text-sm" />
+                                ))}
+                                <div className="flex gap-2">
+                                    <Button type="button" variant="outline" size="sm" className="h-8" onClick={() => setPollOptions((prev) => [...prev, ''])}><PlusIcon className="size-4" /></Button>
+                                    <div className="flex-1" />
+                                    <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => { setCreatingPoll(false); }}>{t('Cancel', 'Cancel')}</Button>
+                                    <Button type="submit" size="sm" className="h-8">{t('Create poll', 'Create poll')}</Button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-muted-foreground">{t('No poll yet today.', 'No poll yet today.')}</div>
+                                <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => setCreatingPoll(true)}>
+                                    <PlusIcon className="size-4 mr-1" /> {t('Start poll', 'Start poll')}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {poll && isVotingOpen && (
+                    <div className="p-2 pt-0">
+                        <div className="text-sm font-semibold mb-1">{t('Vote for lunch', 'Vote for lunch')}</div>
+                        <div className="grid sm:grid-cols-2 gap-2">
+                            {poll.options.map((opt) => (
+                                <form key={opt.id} method="post" onSubmit={(e) => {
+                                    e.preventDefault();
+                                    router.post('/poll/vote', { poll_option_id: opt.id }, { preserveScroll: true });
+                                }} className={`flex items-center justify-between rounded-md border px-2 py-1.5 ${userVote && userVote.poll_option_id === opt.id ? 'bg-accent' : ''}`}>
+                                    <div className="min-w-0">
+                                        <div className="text-sm font-medium truncate">{opt.name}</div>
+                                        {opt.description && <div className="text-xs text-muted-foreground truncate">{opt.description}</div>}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">{opt.vote_count}</span>
+                                        <Button type="submit" size="sm" variant={userVote && userVote.poll_option_id === opt.id ? 'secondary' : 'outline'} className="h-7 px-2">
+                                            {userVote && userVote.poll_option_id === opt.id ? <CheckIcon className="size-3.5" /> : t('Vote', 'Vote')}
+                                        </Button>
+                                    </div>
+                                </form>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
             </div>
             <datalist id="default-locations">
                 {defaultLocations.map((loc) => (

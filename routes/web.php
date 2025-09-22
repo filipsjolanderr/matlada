@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AlignmentController;
 use App\Http\Controllers\PollController;
+use App\Http\Controllers\ChatMessageController;
 use App\Http\Controllers\WeekStatusController;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,10 +25,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('week-status', [WeekStatusController::class, 'index'])->name('week-status.index');
     Route::post('week-status', [WeekStatusController::class, 'upsert'])->name('week-status.upsert');
     Route::delete('week-status', [WeekStatusController::class, 'destroy'])->name('week-status.destroy');
+    Route::post('week-status/chat', [ChatMessageController::class, 'store'])->name('week-status.chat.store');
     Route::get('alignment', [AlignmentController::class, 'index'])->name('alignment.index');
 
     // Route::get('poll', [PollController::class, 'index'])->name('poll.index');
-    // Route::post('poll/vote', [PollController::class, 'vote'])->name('poll.vote');
+    Route::post('poll/vote', [PollController::class, 'vote'])->name('poll.vote');
+    Route::post('poll/store-from-chat', [PollController::class, 'storeFromChat'])->name('poll.storeFromChat');
 });
 
 require __DIR__.'/settings.php';
