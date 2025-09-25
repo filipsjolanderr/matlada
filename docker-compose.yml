@@ -36,41 +36,21 @@ services:
     command: >
       php artisan reverb:start
     labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.reverb-secure.rule=Host(`wsmatlada.sjolander.dev`) && PathPrefix(`/app`)"
-      - "traefik.http.routers.reverb-secure.entrypoints=websecure"
-      - "traefik.http.routers.reverb-secure.service=reverb-service"
-      - "traefik.http.routers.reverb-secure.tls.certresolver=letsencrypt"
-      - "traefik.http.services.reverb-service.loadbalancer.server.port=8080"
-    environment:
-      # App URL for URL generation in notifications, etc.
-      APP_URL: ${APP_URL}
-      # Reverb configuration
-      REVERB_APP_KEY: ${REVERB_APP_KEY}
-      # Bind address/port for the Reverb server inside the container
-      REVERB_SERVER_HOST: 0.0.0.0
-      REVERB_SERVER_PORT: 8080
-      # Public endpoint clients should use (typically your domain over 443)
-      REVERB_HOST: ${REVERB_HOST}
-      REVERB_PORT: ${REVERB_PORT:-443}
-      REVERB_SCHEME: ${REVERB_SCHEME:-https}
-      REVERB_SECRET: ${REVERB_SECRET:-}
-      # Database (if needed by the websocket server)
-      DB_CONNECTION: ${DB_CONNECTION:-pgsql}
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_DATABASE: ${DB_DATABASE:-laravel}
-      DB_USERNAME: ${DB_USERNAME:-sail}
-      DB_PASSWORD: ${DB_PASSWORD:-password}
-    # No host port publications; Traefik/Dokploy will route traffic internally
-    depends_on:
-      db:
-        condition: service_healthy
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=dokploy-network'
+      - 'traefik.http.routers.reverb.rule=Host(`https://wsmatlada.sjolander.dev`) && PathPrefix(`/app`)'
+      - 'traefik.http.routers.reverb.entrypoints=websecure'
+      - 'traefik.http.routers.reverb.service=reverb-service'
+      - 'traefik.http.routers.reverb.tls.certresolver=letsencrypt'
+      - 'traefik.http.services.reverb.loadbalancer.server.port=8081'
     volumes:
       - storage-app:/app/storage
     networks:
       - dokploy-network
+    healthcheck:
+      # This is our native healthcheck script for Reverb
+      test: ['CMD', 'healthcheck-reverb']
+      start_period: 10s
 
   # PostgreSQL Database Service
   db:
