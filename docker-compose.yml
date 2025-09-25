@@ -38,7 +38,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
-      - traefik.http.routers.reverb-secure.rule=Host(`ws.matlada.sjolander.dev`) && PathPrefix(`/app`)
+      - traefik.http.routers.reverb-secure.rule=Host(`wsmatlada.sjolander.dev`) && PathPrefix(`/app`)
       - traefik.http.routers.reverb-secure.entrypoints=websecure
       - traefik.http.routers.reverb-secure.service=reverb-service
       - traefik.http.routers.reverb-secure.tls.certresolver=letsencrypt
