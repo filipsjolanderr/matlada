@@ -28,6 +28,37 @@ services:
       db:
         condition: service_healthy # Wait for the database to be ready
 
+  reverb:
+    build: .
+    restart: always
+    command: >
+      php artisan reverb:start
+      --host=0.0.0.0
+      --port=8080
+    environment:
+      # App URL for URL generation in notifications, etc.
+      APP_URL: ${APP_URL}
+      # Reverb configuration
+      REVERB_APP_KEY: ${REVERB_APP_KEY}
+      REVERB_HOST: 0.0.0.0
+      REVERB_PORT: 8080
+      REVERB_SCHEME: ${REVERB_SCHEME:-https}
+      REVERB_SECRET: ${REVERB_SECRET:-}
+      # Database (if needed by the websocket server)
+      DB_CONNECTION: ${DB_CONNECTION:-pgsql}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-laravel}
+      DB_USERNAME: ${DB_USERNAME:-sail}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+    ports:
+      - '8080:8080'
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+
   # PostgreSQL Database Service
   db:
     image: postgres:15
