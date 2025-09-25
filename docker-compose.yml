@@ -27,6 +27,8 @@ services:
     depends_on:
       db:
         condition: service_healthy # Wait for the database to be ready
+    volumes:
+      - storage-app:/app/storage
 
   reverb:
     build: .
@@ -56,6 +58,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - storage-app:/app/storage
     networks:
       - dokploy-network
 
@@ -84,3 +88,4 @@ services:
 # Named volumes for data persistence
 volumes:
   db-data:
+  storage-app:

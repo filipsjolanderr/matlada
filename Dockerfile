@@ -43,4 +43,9 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 RUN php artisan octane:install --server=frankenphp && \
     php artisan config:cache && \
     php artisan route:cache && \
-    php artisan view:cache
+    php artisan view:cache && \
+    php artisan storage:link || true
+
+# Ensure runtime write permissions
+RUN chown -R www-data:www-data storage bootstrap/cache && \
+    chmod -R ug+rw storage bootstrap/cache
