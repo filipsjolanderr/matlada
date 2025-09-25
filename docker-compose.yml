@@ -39,8 +39,7 @@ services:
       --port=8080
     labels:
       - traefik.enable=true
-      - traefik.http.routers.reverb.rule=Host(`matlada.sjolander.dev`) && PathPrefix(`/app`)
-      - traefik.http.routers.reverb.priority=100
+      - traefik.http.routers.reverb.rule=Host(`ws.matlada.sjolander.dev`) # <-- CHANGE THIS LINE
       - traefik.http.routers.reverb.entrypoints=websecure
       - traefik.http.routers.reverb.service=reverb
       - traefik.http.routers.reverb.tls.certresolver=letsencrypt
