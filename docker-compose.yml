@@ -37,6 +37,16 @@ services:
       php artisan reverb:start
       --host=0.0.0.0
       --port=8080
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.reverb.rule=Host(`matlada.sjolander.dev`) && PathPrefix(`/app/`)
+      - traefik.http.routers.reverb.entrypoints=websecure
+      - traefik.http.routers.reverb.tls=true
+      - traefik.http.services.reverb.loadbalancer.server.port=8080
+      - traefik.http.routers.reverb.service=reverb
+      - traefik.http.middlewares.reverb-headers.headers.customrequestheaders.Upgrade=websocket
+      - traefik.http.middlewares.reverb-headers.headers.customrequestheaders.Connection=Upgrade
+      - traefik.http.routers.reverb.middlewares=reverb-headers
     environment:
       # App URL for URL generation in notifications, etc.
       APP_URL: ${APP_URL}
