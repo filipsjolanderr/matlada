@@ -39,14 +39,12 @@ services:
       --port=8080
     labels:
       - traefik.enable=true
-      - traefik.http.routers.reverb.rule=Host(`matlada.sjolander.dev`) && PathPrefix(`/app/`)
+      - traefik.http.routers.reverb.rule=Host(`matlada.sjolander.dev`)
       - traefik.http.routers.reverb.entrypoints=websecure
-      - traefik.http.routers.reverb.tls=true
-      - traefik.http.services.reverb.loadbalancer.server.port=8080
       - traefik.http.routers.reverb.service=reverb
-      - traefik.http.middlewares.reverb-headers.headers.customrequestheaders.Upgrade=websocket
-      - traefik.http.middlewares.reverb-headers.headers.customrequestheaders.Connection=Upgrade
-      - traefik.http.routers.reverb.middlewares=reverb-headers
+      - traefik.http.routers.reverb.tls.certresolver=letsencrypt
+      - traefik.http.services.reverb.loadbalancer.server.port=8080
+      - traefik.docker.network=dokploy-network
     environment:
       # App URL for URL generation in notifications, etc.
       APP_URL: ${APP_URL}
