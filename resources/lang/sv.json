@@ -120,5 +120,16 @@
     "Warning: This will override existing values for": "Varning: Detta kommer att skriva över befintliga värden för",
     "This will set the same values for all coming days in this week.": "Detta kommer att sätta samma värden för alla kommande dagar denna vecka.",
     "Cancel": "Avbryt",
-    "Confirm": "Bekräfta"
+    "Confirm": "Bekräfta",
+    "Chat": "Chatt",
+    "Type a message…": "Skriv ett meddelande…",
+    "Resize chat": "Ändra storlek på chatten",
+    "Failed to send.": "Det gick inte att skicka.",
+    "Create poll": "Skapa röstning",
+    "Title (optional)": "Titel (valfritt)",
+    "Option": "Alternativ",
+    "Failed to create poll.": "Det gick inte att skapa röstning.",
+    "Failed to vote.": "Det gick inte att rösta.",
+    "Failed to update poll.": "Det gick inte att uppdatera röstningen.",
+    "Send": "Skicka"
 }

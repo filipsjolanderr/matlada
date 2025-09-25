@@ -15,6 +15,7 @@ class Poll extends Model
         'poll_date',
         'deadline',
         'is_active',
+        'title',
     ];
 
     protected function casts(): array

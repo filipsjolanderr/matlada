@@ -13,8 +13,17 @@ class ChatMessage extends Model
     protected $fillable = [
         'user_id',
         'iso_week',
+        'type',
+        'payload',
         'body',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'payload' => 'array',
+        ];
+    }
 
     public function user(): BelongsTo
     {

@@ -30,6 +30,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Route::get('poll', [PollController::class, 'index'])->name('poll.index');
     Route::post('poll/vote', [PollController::class, 'vote'])->name('poll.vote');
+    Route::post('poll/unvote', [PollController::class, 'unvote'])->name('poll.unvote');
     Route::post('poll/store-from-chat', [PollController::class, 'storeFromChat'])->name('poll.storeFromChat');
 });
 

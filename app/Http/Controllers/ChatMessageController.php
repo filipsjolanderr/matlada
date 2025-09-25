@@ -23,6 +23,8 @@ class ChatMessageController extends Controller
         $message = ChatMessage::create([
             'user_id' => (int) $request->user()->id,
             'iso_week' => $validated['iso_week'],
+            'type' => 'text',
+            'payload' => null,
             'body' => $validated['body'],
         ]);
 

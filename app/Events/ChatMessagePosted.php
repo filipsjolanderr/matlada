@@ -36,6 +36,8 @@ class ChatMessagePosted implements ShouldBroadcastNow
                 'id' => $this->message->user->id,
                 'name' => $this->message->user->name,
             ],
+            'type' => $this->message->type,
+            'payload' => $this->message->payload,
             'body' => $this->message->body,
             'created_at' => $this->message->created_at->toIso8601String(),
         ];

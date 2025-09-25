@@ -49,10 +49,52 @@ class WeekStatusController extends Controller
         $startOfDay = $today->clone()->startOfDay();
         $windowStart = $now->greaterThanOrEqualTo($resetAt) ? $resetAt : $startOfDay;
         $chatQuery = ChatMessage::query()
-            ->with(['user:id,name'])
+            ->with(['user:id,name,avatar'])
             ->where('iso_week', $week)
             ->where('created_at', '>=', $windowStart);
         $chatMessages = $chatQuery->latest('id')->limit(100)->get()->reverse()->values();
+
+        // Ensure poll chat messages include up-to-date vote counts on initial load
+        $pollIdsInChat = collect($chatMessages)
+            ->filter(fn ($m) => ($m->type ?? 'text') === 'poll' && is_array($m->payload) && isset($m->payload['poll_id']))
+            ->map(fn ($m) => (int) $m->payload['poll_id'])
+            ->unique()
+            ->values();
+        if ($pollIdsInChat->isNotEmpty()) {
+            $pollsById = Poll::with(['options' => function ($q) {
+                $q->orderBy('id'); // stable order
+            }])->whereIn('id', $pollIdsInChat)->get()->keyBy('id');
+
+            // Map of poll_id => poll_option_id for current user (if any)
+            $userVotesByPollId = Vote::query()
+                ->select(['poll_id', 'poll_option_id'])
+                ->where('user_id', $currentUserId)
+                ->whereIn('poll_id', $pollIdsInChat)
+                ->get()
+                ->keyBy('poll_id');
+
+            foreach ($chatMessages as $m) {
+                if (($m->type ?? 'text') !== 'poll' || ! is_array($m->payload)) {
+                    continue;
+                }
+                $pid = (int) ($m->payload['poll_id'] ?? 0);
+                if ($pid && isset($pollsById[$pid])) {
+                    $poll = $pollsById[$pid];
+                    $userVoteOptionId = optional($userVotesByPollId->get($pid))->poll_option_id;
+                    $m->payload = [
+                        'poll_id' => $poll->id,
+                        'title' => $poll->title,
+                        'options' => $poll->options->map(fn ($opt) => [
+                            'id' => $opt->id,
+                            'name' => $opt->name,
+                            'description' => $opt->description,
+                            'vote_count' => $opt->vote_count,
+                        ])->values()->all(),
+                        'user_vote_option_id' => $userVoteOptionId,
+                    ];
+                }
+            }
+        }
 
         $poll = null;
         $userVote = null;

@@ -12,7 +12,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('iso_week', 10)->index();
-            $table->text('body');
+            $table->string('type', 20)->default('text');
+            $table->json('payload')->nullable();
+            $table->text('body')->nullable();
             $table->timestamps();
         });
     }
