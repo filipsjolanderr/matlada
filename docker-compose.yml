@@ -67,8 +67,7 @@ services:
       DB_DATABASE: ${DB_DATABASE:-laravel}
       DB_USERNAME: ${DB_USERNAME:-sail}
       DB_PASSWORD: ${DB_PASSWORD:-password}
-    ports:
-      - '8080:8080'
+    # No host port publications; Traefik/Dokploy will route traffic internally
     depends_on:
       db:
         condition: service_healthy
@@ -88,9 +87,7 @@ services:
       POSTGRES_DB: ${DB_DATABASE:-laravel}
       POSTGRES_USER: ${DB_USERNAME:-sail}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-    ports:
-      # Optionally expose the database port to the host machine
-      - '5432:5432'
+    # Do not publish the database port in production
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-sail} -d ${DB_DATABASE:-laravel}']
       interval: 10s
