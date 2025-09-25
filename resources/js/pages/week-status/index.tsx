@@ -172,6 +172,8 @@ export default function WeekStatusIndex() {
             return raw === '1';
         } catch { return false; }
     });
+    const [unreadCount, setUnreadCount] = React.useState<number>(0);
+    const hasWindowFocusRef = React.useRef<boolean>(true);
     const [chatSize, setChatSize] = React.useState<{ width: number; height: number }>(() => {
         try {
             const raw = localStorage.getItem('chat.size');
@@ -199,6 +201,77 @@ export default function WeekStatusIndex() {
     React.useEffect(() => {
         try { localStorage.setItem('chat.size', JSON.stringify(chatSize)); } catch { /* ignore */ }
     }, [chatSize.width, chatSize.height]);
+
+    // Ask for browser notification permission early (non-blocking)
+    React.useEffect(() => {
+        try {
+            if (typeof window !== 'undefined' && 'Notification' in window) {
+                if (Notification.permission === 'default') {
+                    // Do not await; simply trigger the prompt once
+                    Notification.requestPermission().catch(() => {});
+                }
+            }
+        } catch {}
+    }, []);
+
+    // Track window focus/visibility
+    React.useEffect(() => {
+        function onFocus() { 
+            hasWindowFocusRef.current = true; 
+            if (!chatCollapsed) setUnreadCount(0);
+        }
+        function onBlur() { hasWindowFocusRef.current = false; }
+        function onVisibility() { 
+            hasWindowFocusRef.current = !document.hidden; 
+            if (!document.hidden && !chatCollapsed) setUnreadCount(0);
+        }
+        window.addEventListener('focus', onFocus);
+        window.addEventListener('blur', onBlur);
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            window.removeEventListener('blur', onBlur);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, []);
+
+    // Reset unread when user opens chat
+    React.useEffect(() => {
+        if (!chatCollapsed) {
+            setUnreadCount(0);
+        }
+    }, [chatCollapsed]);
+
+    function playBeep(): void {
+        try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(880, ctx.currentTime);
+            g.gain.setValueAtTime(0.0001, ctx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.25);
+            o.connect(g).connect(ctx.destination);
+            o.start();
+            o.stop(ctx.currentTime + 0.3);
+        } catch {}
+    }
+
+    function showBrowserNotification(title: string, body: string | null | undefined): void {
+        try {
+            if (!('Notification' in window)) return;
+            if (Notification.permission !== 'granted') return;
+            const n = new Notification(title, {
+                body: body ?? '',
+                icon: '/favicon.ico',
+            });
+            n.onclick = () => {
+                try { window.focus(); } catch {}
+                setChatCollapsed(false);
+            };
+        } catch {}
+    }
 
     React.useEffect(() => {
         if (!chatCollapsed) {
@@ -285,9 +358,21 @@ export default function WeekStatusIndex() {
             });
             echo.channel(channelName).listen('.ChatMessagePosted', (e: { id: number; type?: string; payload?: any; body?: string | null; created_at: string; user: { id: number; name: string } }) => {
                 setMessages((prev) => [...prev, e]);
+                // Conditions: notify if message from others and user is not actively reading
+                const fromOtherUser = e.user?.id !== canEditUserId;
+                const userInactive = chatCollapsed || document.hidden || !hasWindowFocusRef.current;
+                if (fromOtherUser && userInactive) {
+                    setUnreadCount((c) => c + 1);
+                    // Try sound
+                    playBeep();
+                    // Try browser notification if permitted and tab hidden
+                    if (document.hidden) {
+                        showBrowserNotification(`${e.user?.name ?? ''}`, typeof e.body === 'string' ? e.body : (e.type ? `${e.type}` : 'New message'));
+                    }
+                }
                 // Scroll chat to bottom when a new message arrives
                 const el = document.getElementById('chat-scroll');
-                if (el) {
+                if (el && !chatCollapsed) {
                     el.scrollTop = el.scrollHeight;
                 }
             });
@@ -925,6 +1010,11 @@ export default function WeekStatusIndex() {
                                 <div className="flex items-center justify-between px-2 py-1.5 border-b">
                                     <div className="flex items-center gap-2 pl-6">
                                         <span className="text-sm font-semibold">{t('Chat', 'Chat')}</span>
+                                        {chatCollapsed && unreadCount > 0 && (
+                                            <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[10px] px-1.5 py-0.5 min-w-[18px]">
+                                                {unreadCount}
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <CollapsibleTrigger asChild>
