@@ -35,6 +35,18 @@ services:
     restart: always
     command: |
       php artisan reverb:start --host=0.0.0.0 --port=8081
+    environment:
+      SERVER_NAME: ${APP_URL:-:80}
+      DB_CONNECTION: ${DB_CONNECTION:-pgsql}
+      DB_HOST: ${DB_HOST:-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_DATABASE: ${DB_DATABASE:-laravel}
+      DB_USERNAME: ${DB_USERNAME:-sail}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+    # FIX #4: Reverb must also wait for the database to be ready before starting.
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - storage-app:/app/storage
     networks:
