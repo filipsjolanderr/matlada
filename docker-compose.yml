@@ -35,16 +35,6 @@ services:
     restart: always
     command: >
       php artisan reverb:start
-      --host=0.0.0.0
-      --port=8080
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.reverb.rule=Host(`ws.matlada.sjolander.dev`) # <-- CHANGE THIS LINE
-      - traefik.http.routers.reverb.entrypoints=websecure
-      - traefik.http.routers.reverb.service=reverb
-      - traefik.http.routers.reverb.tls.certresolver=letsencrypt
-      - traefik.http.services.reverb.loadbalancer.server.port=8080
-      - traefik.docker.network=dokploy-network
     environment:
       # App URL for URL generation in notifications, etc.
       APP_URL: ${APP_URL}
