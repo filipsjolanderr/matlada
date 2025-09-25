@@ -33,16 +33,8 @@ services:
   reverb:
     build: .
     restart: always
-    command: >
-      php artisan reverb:start
-    labels:
-      - 'traefik.enable=true'
-      - 'traefik.docker.network=dokploy-network'
-      - 'traefik.http.routers.reverb.rule=Host(`https://wsmatlada.sjolander.dev`) && PathPrefix(`/app`)'
-      - 'traefik.http.routers.reverb.entrypoints=websecure'
-      - 'traefik.http.routers.reverb.service=reverb-service'
-      - 'traefik.http.routers.reverb.tls.certresolver=letsencrypt'
-      - 'traefik.http.services.reverb.loadbalancer.server.port=8081'
+    command: |
+      php artisan reverb:start --host=0.0.0.0 --port=8081
     volumes:
       - storage-app:/app/storage
     networks:
