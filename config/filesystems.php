@@ -30,6 +30,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Signed URL Cache TTL
+    |--------------------------------------------------------------------------
+    |
+    | Cache lifetime (in seconds) for generated S3 signed URLs. Caching helps
+    | keep the URL stable between responses to avoid client flicker and
+    | multiple fetches when signatures change frequently.
+    |
+    */
+
+    's3_signed_url_cache_ttl' => env('S3_SIGNED_URL_CACHE_TTL', 600),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |
