@@ -48,6 +48,7 @@ class WeekStatusController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'avatar' => $user->avatar,
+                'avatar_url' => $user->avatar_url,
             ]),
             'statuses' => $statuses,
             'canEditUserId' => $currentUser->id,
