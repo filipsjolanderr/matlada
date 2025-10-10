@@ -28,36 +28,44 @@ export function GroupSelector({ groups, currentGroupId }: GroupSelectorProps) {
         currentGroupId ? currentGroupId.toString() : 'all'
     );
 
-    // Load saved group preference on component mount
+    // Load saved group preference on component mount without causing navigation loops
     useEffect(() => {
         const savedGroupId = localStorage.getItem('selectedGroupId');
-        if (savedGroupId && !currentGroupId) {
-            // Only use saved preference if no current group is specified in URL
-            // Validate that the saved group ID is still valid (user is still a member)
-            if (savedGroupId === 'all' || groups.some(group => group.id.toString() === savedGroupId)) {
-                setSelectedGroupId(savedGroupId);
-                if (savedGroupId === 'all') {
-                    router.visit('/week-status', {
-                        preserveState: true,
-                        preserveScroll: true,
-                    });
-                } else {
-                    router.visit(`/week-status?group=${savedGroupId}`, {
-                        preserveState: true,
-                        preserveScroll: true,
-                    });
-                }
-            } else {
-                // Clear invalid saved group ID and default to 'all'
-                localStorage.removeItem('selectedGroupId');
-                setSelectedGroupId('all');
-                router.visit('/week-status', {
-                    preserveState: true,
-                    preserveScroll: true,
-                });
-            }
+        if (!savedGroupId || currentGroupId) {
+            return; // Nothing to do or URL already pins a group
         }
-    }, [currentGroupId, groups]);
+
+        // Validate that the saved group ID is still valid (user is still a member)
+        const isValidSaved = savedGroupId === 'all' || groups.some(g => g.id.toString() === savedGroupId);
+        if (!isValidSaved) {
+            localStorage.removeItem('selectedGroupId');
+            setSelectedGroupId('all');
+            // Only navigate if the current URL has an obsolete group param
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('group')) {
+                router.visit('/week-status', { preserveState: true, preserveScroll: true });
+            }
+            return;
+        }
+
+        setSelectedGroupId(savedGroupId);
+
+        // Avoid re-visiting if the URL already matches the saved preference
+        const params = new URLSearchParams(window.location.search);
+        const currentParam = params.get('group');
+        const targetIsAll = savedGroupId === 'all';
+        const alreadyCorrect = (targetIsAll && !currentParam) || (!targetIsAll && currentParam === savedGroupId);
+        if (alreadyCorrect) {
+            return; // Prevent endless GET requests from redundant visits
+        }
+
+        if (targetIsAll) {
+            router.visit('/week-status', { preserveState: true, preserveScroll: true });
+        } else {
+            router.visit(`/week-status?group=${savedGroupId}`, { preserveState: true, preserveScroll: true });
+        }
+    // Intentionally run only on mount and when groups list changes materially
+    }, [groups, currentGroupId]);
 
     const handleGroupChange = (groupId: string) => {
         setSelectedGroupId(groupId);
