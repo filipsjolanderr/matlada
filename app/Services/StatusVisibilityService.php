@@ -158,12 +158,16 @@ class StatusVisibilityService
             return User::query()->where('id', $user->id)->get();
         }
 
-        // Show all users who are members of the same groups
-        return User::query()
+        // Show all users who are members of the same groups, with current user first
+        $users = User::query()
             ->whereHas('groups', function ($query) use ($userGroupIds) {
                 $query->whereIn('group_id', $userGroupIds);
             })
             ->orWhere('id', $user->id) // Always include the user themselves
+            ->orderByRaw("CASE WHEN id = ? THEN 0 ELSE 1 END", [$user->id])
+            ->orderBy('name')
             ->get();
+
+        return $users;
     }
 }
