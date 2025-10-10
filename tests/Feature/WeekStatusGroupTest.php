@@ -180,7 +180,7 @@ it('shows only group members in group view', function () {
     );
 });
 
-it('shows all users in global view', function () {
+it('shows only self when user has no groups', function () {
     $otherUser = User::factory()->create();
     
     $response = $this->get('/week-status');
@@ -188,7 +188,7 @@ it('shows all users in global view', function () {
     $response->assertOk();
     $response->assertInertia(fn ($page) => 
         $page->component('week-status/index')
-            ->has('users', 2) // Current user + other user
+            ->has('users', 1) // Only current user (no groups = private)
     );
 });
 
@@ -220,11 +220,14 @@ it('filters statuses by group in group view', function () {
             ->has('statuses')
     );
     
-    // Should only show group status, not global status
+    // Should show both group status and personal status (group members can see each other's personal statuses)
     $statuses = $response->viewData('page')['props']['statuses'];
     expect($statuses)->toHaveKey($this->user->id);
-    expect($statuses[$this->user->id])->toHaveCount(1);
-    expect($statuses[$this->user->id][0]['id'])->toBe($groupStatus->id);
+    expect($statuses[$this->user->id])->toHaveCount(2);
+    
+    $statusIds = collect($statuses[$this->user->id])->pluck('id')->toArray();
+    expect($statusIds)->toContain($groupStatus->id);
+    expect($statusIds)->toContain($globalStatus->id);
 });
 
 it('filters statuses by null group in global view', function () {
@@ -251,9 +254,12 @@ it('filters statuses by null group in global view', function () {
     
     $response->assertOk();
     
-    // Should only show global status, not group status
+    // Should show both group status and personal status (user can see their own statuses)
     $statuses = $response->viewData('page')['props']['statuses'];
     expect($statuses)->toHaveKey($this->user->id);
-    expect($statuses[$this->user->id])->toHaveCount(1);
-    expect($statuses[$this->user->id][0]['id'])->toBe($globalStatus->id);
+    expect($statuses[$this->user->id])->toHaveCount(2);
+    
+    $statusIds = collect($statuses[$this->user->id])->pluck('id')->toArray();
+    expect($statusIds)->toContain($groupStatus->id);
+    expect($statusIds)->toContain($globalStatus->id);
 });

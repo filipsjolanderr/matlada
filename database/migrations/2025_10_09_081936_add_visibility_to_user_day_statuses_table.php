@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('user_day_statuses', function (Blueprint $table) {
-            $table->enum('visibility', ['group_only', 'all_groups', 'private'])->default('group_only');
+            $table->enum('visibility', ['group_only', 'all_groups'])->default('group_only');
         });
     }
 

@@ -3,9 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Group;
-
 use App\Models\User;
 use App\Models\UserDayStatus;
+use App\Services\StatusCreationService;
+use App\Services\StatusVisibilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -14,31 +15,127 @@ use Inertia\Response;
 
 class WeekStatusController extends Controller
 {
-    public function index(Request $request): Response
-    {
-        // Auth is enforced by route middleware; no explicit policy needed here
+    public function __construct(
+        private StatusVisibilityService $visibilityService,
+        private StatusCreationService $creationService
+    ) {}
 
-        $weekParam = (string) $request->query('week');
-        $groupParam = (string) $request->query('group');
-        $now = Carbon::now();
-        
-        // If no week provided and it's weekend (Sat/Sun), use next ISO week
-        if ($weekParam === '') {
-            $isoWeekSource = in_array($now->dayOfWeekIso, [6, 7], true) ? $now->clone()->addWeek() : $now;
-            $week = $isoWeekSource->isoFormat('GGGG-[W]WW');
-        } else {
-            $week = $weekParam;
+    public function index(Request $request): Response|RedirectResponse
+    {
+        $week = $this->determineWeek($request);
+        $currentUser = $request->user();
+
+        // Get user's groups first
+        $userGroups = $this->getUserGroupsForSelector($currentUser);
+
+        $group = $this->getRequestedGroup($request, $currentUser);
+
+        // If user has no groups and a group is requested, redirect to global view
+        if (empty($userGroups) && $request->has('group')) {
+            return redirect('/week-status');
         }
 
-        $currentUser = $request->user();
-        $currentUserId = $currentUser->id;
+        // Get visible users and statuses using services
+        $users = $this->visibilityService->getVisibleUsers($currentUser);
+        $statuses = $this->visibilityService->getVisibleStatuses($currentUser, $week, $group)
+            ->groupBy('user_id');
 
-        // Get user's groups for the group selector
-        $userGroups = $currentUser->groups()
+        return Inertia::render('week-status/index', [
+            'week' => $week,
+            'group' => $group ? $this->formatGroupForView($group, $currentUser) : null,
+            'groups' => $userGroups,
+            'users' => $users->map(fn ($user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'avatar' => $user->avatar,
+            ]),
+            'statuses' => $statuses,
+            'canEditUserId' => $currentUser->id,
+            'activeWeekday' => null, // This can be set based on current day if needed
+        ]);
+    }
+
+    public function upsert(Request $request): RedirectResponse
+    {
+        $this->creationService->createOrUpdateStatus($request, $request->user());
+
+        return back();
+    }
+
+    public function destroy(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'iso_week' => ['required', 'string'],
+            'weekday' => ['required', 'integer', 'between:1,5'],
+            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
+        ]);
+
+        $user = $request->user();
+        $groupId = $request->input('group_id');
+
+        // Validate group access if group_id is provided
+        if ($groupId) {
+            $group = Group::find($groupId);
+            if (! $group || ! $group->isMember($user)) {
+                abort(403, 'You are not a member of this group.');
+            }
+        }
+
+        UserDayStatus::where([
+            'user_id' => $user->id,
+            'group_id' => $groupId,
+            'iso_week' => $request->input('iso_week'),
+            'weekday' => $request->input('weekday'),
+        ])->delete();
+
+        return back();
+    }
+
+    private function determineWeek(Request $request): string
+    {
+        $weekParam = (string) $request->query('week');
+        $now = Carbon::now();
+
+        if ($weekParam === '') {
+            // If no week provided and it's weekend (Sat/Sun), use next ISO week
+            $isoWeekSource = in_array($now->dayOfWeekIso, [6, 7], true) ? $now->clone()->addWeek() : $now;
+
+            return $isoWeekSource->isoFormat('GGGG-[W]WW');
+        }
+
+        return $weekParam;
+    }
+
+    private function getRequestedGroup(Request $request, User $user): ?Group
+    {
+        $groupParam = (string) $request->query('group');
+
+        if (! $groupParam) {
+            return null;
+        }
+
+        $group = Group::where('id', $groupParam)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $group) {
+            abort(404, 'The selected group does not exist.');
+        }
+
+        if (! $group->isMember($user)) {
+            abort(403, 'You are not a member of this group.');
+        }
+
+        return $group;
+    }
+
+    private function getUserGroupsForSelector(User $user): array
+    {
+        return $user->groups()
             ->select(['groups.id', 'groups.name', 'groups.description', 'groups.code', 'groups.invite_link'])
             ->withPivot(['role'])
             ->get()
-            ->map(function ($group) use ($currentUser) {
+            ->map(function ($group) use ($user) {
                 return [
                     'id' => $group->id,
                     'name' => $group->name,
@@ -46,199 +143,26 @@ class WeekStatusController extends Controller
                     'code' => $group->code,
                     'invite_link' => $group->invite_link,
                     'is_admin' => $group->pivot->role === 'admin',
-                    'is_creator' => $group->created_by === $currentUser->id,
+                    'is_creator' => $group->created_by === $user->id,
                     'invite_url' => $group->getInviteUrl(),
                     'invite_link_url' => $group->getInviteLinkUrl(),
                 ];
-            });
-
-        // Get the group (if specified and user is a member)
-        $group = null;
-        if ($groupParam) {
-            $group = Group::where('id', $groupParam)
-                ->where('is_active', true)
-                ->first();
-            
-            if ($group && !$group->isMember($currentUser)) {
-                abort(403, 'You are not a member of this group.');
-            }
-        }
-
-        // Get users and statuses based on privacy settings
-        if ($group) {
-            // Group view: show only group members
-            $users = $group->users()
-                ->select(['users.id', 'users.name', 'users.email', 'users.avatar'])
-                ->orderByRaw('CASE WHEN users.id = ? THEN 0 ELSE 1 END', [$currentUserId])
-                ->orderBy('users.name')
-                ->get();
-                
-            // Get statuses visible to this group
-            $statusQuery = UserDayStatus::query()
-                ->where('iso_week', $week)
-                ->where(function ($query) use ($group, $currentUserId) {
-                    $query->where('group_id', $group->id)
-                          ->orWhere(function ($subQuery) use ($currentUserId) {
-                              // Show user's own statuses regardless of visibility
-                              $subQuery->where('user_id', $currentUserId);
-                          })
-                          ->orWhere(function ($subQuery) use ($group) {
-                              // Show statuses visible to all groups from users in this group
-                              $subQuery->where('visibility', 'all_groups')
-                                      ->whereIn('user_id', $group->users()->pluck('users.id'));
-                          });
-                });
-        } else {
-            // Global view: show users from all groups the current user belongs to
-            $userGroupIds = $currentUser->groups()->pluck('groups.id');
-            
-            if ($userGroupIds->isEmpty()) {
-                // User hasn't joined any groups yet - show all users (backward compatibility)
-                $users = User::query()
-                    ->select(['id', 'name', 'email', 'avatar'])
-                    ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$currentUserId])
-                    ->orderBy('name')
-                    ->get();
-                
-                // Show all statuses (backward compatibility)
-                $statusQuery = UserDayStatus::query()
-                    ->where('iso_week', $week);
-            } else {
-                // User belongs to groups - show group members
-                $users = User::query()
-                    ->whereHas('groups', function ($query) use ($userGroupIds) {
-                        $query->whereIn('groups.id', $userGroupIds);
-                    })
-                    ->select(['id', 'name', 'email', 'avatar'])
-                    ->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$currentUserId])
-                    ->orderBy('name')
-                    ->get();
-                    
-                // Get statuses visible globally
-                $statusQuery = UserDayStatus::query()
-                    ->where('iso_week', $week)
-                    ->where(function ($query) use ($currentUserId, $userGroupIds) {
-                        $query->where('user_id', $currentUserId) // User's own statuses
-                              ->orWhere('visibility', 'all_groups') // Statuses visible to all groups
-                              ->orWhere(function ($subQuery) use ($userGroupIds) {
-                                  // Statuses from groups the user belongs to
-                                  $subQuery->whereIn('group_id', $userGroupIds)
-                                          ->where('visibility', 'group_only');
-                              });
-                    });
-            }
-        }
-        
-        $statuses = $statusQuery->get()->groupBy('user_id');
-
-        return Inertia::render('week-status/index', [
-            'week' => $week,
-            'group' => $group ? [
-                'id' => $group->id,
-                'name' => $group->name,
-                'code' => $group->code,
-            ] : null,
-            'groups' => $userGroups,
-            'activeWeekday' => $now->dayOfWeekIso >= 1 && $now->dayOfWeekIso <= 5 ? $now->dayOfWeekIso : 1,
-            'users' => $users,
-            'statuses' => $statuses,
-            'canEditUserId' => (int) $currentUserId,
-        ]);
+            })
+            ->toArray();
     }
 
-    public function upsert(Request $request): RedirectResponse
+    private function formatGroupForView(Group $group, User $user): array
     {
-        $request->validate([
-            'iso_week' => ['required', 'string', 'regex:/^\\d{4}-W\\d{2}$/'],
-            'weekday' => ['required', 'integer', 'between:1,5'],
-            'status' => ['nullable', 'in:Lunchbox,Buying,Home,Away'],
-            'arrival_time' => ['nullable', 'date_format:H:i'],
-            'location' => ['nullable', 'string', 'max:120'],
-            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
-            'start_location' => ['nullable', 'string', 'max:120'],
-            'eat_location' => ['nullable', 'string', 'max:120'],
-            'note' => ['nullable', 'string'],
-            'visibility' => ['nullable', 'in:group_only,all_groups,private'],
-        ]);
-
-        $userId = (int) $request->user()->id;
-        $group = null;
-
-        // Validate group access if group_id is provided
-        if ($request->has('group_id')) {
-            $group = Group::find($request->group_id);
-            if ($group && !$group->isMember($request->user())) {
-                abort(403, 'You are not a member of this group.');
-            }
-        }
-
-        // Handle visibility logic
-        $visibility = $request->input('visibility', 'group_only');
-        $groupId = $request->input('group_id');
-        
-        if ($visibility === 'all_groups') {
-            // Create status for all user's groups
-            $userGroups = $request->user()->groups;
-            foreach ($userGroups as $userGroup) {
-                $this->createOrUpdateStatus($request, $userId, $userGroup->id, $visibility);
-            }
-        } else {
-            // Single group or private
-            $targetGroupId = $visibility === 'private' ? null : $groupId;
-            $this->createOrUpdateStatus($request, $userId, $targetGroupId, $visibility);
-        }
-
-        return back();
-    }
-
-    private function createOrUpdateStatus(Request $request, int $userId, ?int $groupId, string $visibility): void
-    {
-        // Build only provided attributes to avoid nulling other fields on partial updates
-        $providedAttributes = [];
-        foreach (['status', 'arrival_time', 'location', 'start_location', 'eat_location', 'note'] as $attribute) {
-            if ($request->exists($attribute)) {
-                $providedAttributes[$attribute] = $request->input($attribute);
-            }
-        }
-        
-        $providedAttributes['visibility'] = $visibility;
-
-        UserDayStatus::updateOrCreate(
-            [
-                'user_id' => $userId,
-                'group_id' => $groupId,
-                'iso_week' => $request->string('iso_week')->toString(),
-                'weekday' => (int) $request->integer('weekday'),
-            ],
-            $providedAttributes
-        );
-    }
-
-    public function destroy(Request $request): RedirectResponse
-    {
-        $request->validate([
-            'iso_week' => ['required', 'string', 'regex:/^\\d{4}-W\\d{2}$/'],
-            'weekday' => ['required', 'integer', 'between:1,5'],
-            'group_id' => ['nullable', 'integer', 'exists:groups,id'],
-        ]);
-
-        $userId = (int) $request->user()->id;
-
-        // Validate group access if group_id is provided
-        if ($request->has('group_id')) {
-            $group = Group::find($request->group_id);
-            if ($group && !$group->isMember($request->user())) {
-                abort(403, 'You are not a member of this group.');
-            }
-        }
-
-        UserDayStatus::query()
-            ->where('user_id', $userId)
-            ->where('group_id', $request->input('group_id'))
-            ->where('iso_week', $request->string('iso_week')->toString())
-            ->where('weekday', (int) $request->integer('weekday'))
-            ->delete();
-
-        return back();
+        return [
+            'id' => $group->id,
+            'name' => $group->name,
+            'description' => $group->description,
+            'code' => $group->code,
+            'invite_link' => $group->invite_link,
+            'is_admin' => $group->isAdmin($user),
+            'is_creator' => $group->created_by === $user->id,
+            'invite_url' => $group->getInviteUrl(),
+            'invite_link_url' => $group->getInviteLinkUrl(),
+        ];
     }
 }

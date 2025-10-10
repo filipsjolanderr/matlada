@@ -60,7 +60,6 @@ it('creates user day status with group_only visibility by default', function () 
     expect($status->visibility)->toBe('group_only');
     expect($status->isGroupOnly())->toBeTrue();
     expect($status->isAllGroups())->toBeFalse();
-    expect($status->isPrivate())->toBeFalse();
 });
 
 it('creates user day status with all_groups visibility', function () {
@@ -76,21 +75,8 @@ it('creates user day status with all_groups visibility', function () {
     expect($status->visibility)->toBe('all_groups');
     expect($status->isAllGroups())->toBeTrue();
     expect($status->isGroupOnly())->toBeFalse();
-    expect($status->isPrivate())->toBeFalse();
 });
 
-it('creates private user day status', function () {
-    $status = UserDayStatus::factory()->create([
-        'user_id' => $this->user->id,
-        'group_id' => null,
-        'visibility' => 'private'
-    ]);
-    
-    expect($status->visibility)->toBe('private');
-    expect($status->isPrivate())->toBeTrue();
-    expect($status->isGroupOnly())->toBeFalse();
-    expect($status->isAllGroups())->toBeFalse();
-});
 
 it('filters statuses by visibility in group context', function () {
     $group = Group::factory()->create(['created_by' => $this->user->id]);
@@ -111,12 +97,6 @@ it('filters statuses by visibility in group context', function () {
         'status' => 'Buying'
     ]);
     
-    UserDayStatus::factory()->create([
-        'user_id' => $this->user->id,
-        'group_id' => null,
-        'visibility' => 'private',
-        'status' => 'Home'
-    ]);
     
     // Query for group-visible statuses
     $groupStatuses = UserDayStatus::where('group_id', $group->id)

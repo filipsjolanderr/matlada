@@ -33,20 +33,31 @@ export function GroupSelector({ groups, currentGroupId }: GroupSelectorProps) {
         const savedGroupId = localStorage.getItem('selectedGroupId');
         if (savedGroupId && !currentGroupId) {
             // Only use saved preference if no current group is specified in URL
-            setSelectedGroupId(savedGroupId);
-            if (savedGroupId === 'all') {
-                router.visit('/week-status', {
-                    preserveState: true,
-                    preserveScroll: true,
-                });
+            // Validate that the saved group ID is still valid (user is still a member)
+            if (savedGroupId === 'all' || groups.some(group => group.id.toString() === savedGroupId)) {
+                setSelectedGroupId(savedGroupId);
+                if (savedGroupId === 'all') {
+                    router.visit('/week-status', {
+                        preserveState: true,
+                        preserveScroll: true,
+                    });
+                } else {
+                    router.visit(`/week-status?group=${savedGroupId}`, {
+                        preserveState: true,
+                        preserveScroll: true,
+                    });
+                }
             } else {
-                router.visit(`/week-status?group=${savedGroupId}`, {
+                // Clear invalid saved group ID and default to 'all'
+                localStorage.removeItem('selectedGroupId');
+                setSelectedGroupId('all');
+                router.visit('/week-status', {
                     preserveState: true,
                     preserveScroll: true,
                 });
             }
         }
-    }, [currentGroupId]);
+    }, [currentGroupId, groups]);
 
     const handleGroupChange = (groupId: string) => {
         setSelectedGroupId(groupId);
