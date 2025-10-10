@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
@@ -115,24 +116,31 @@ class User extends Authenticatable
         if ($disk === 's3') {
             $expiration = now()->addHours((int) config('filesystems.s3_signed_url_expiration', 24));
 
-            // Ensure browsers recognize the response as an image to avoid OpaqueResponseBlocking
-            $extension = strtolower(pathinfo($avatar, PATHINFO_EXTENSION));
-            $extensionToMime = [
-                'jpg' => 'image/jpeg',
-                'jpeg' => 'image/jpeg',
-                'png' => 'image/png',
-                'gif' => 'image/gif',
-                'webp' => 'image/webp',
-                'bmp' => 'image/bmp',
-                'svg' => 'image/svg+xml',
-            ];
-            $mime = $extensionToMime[$extension] ?? 'application/octet-stream';
+            // Cache the presigned URL briefly so the client receives a stable URL between requests
+            // This avoids flickering and multiple fetches when the URL signature changes each render
+            $cacheKey = sprintf('user:%d:avatar_url:%s', (int) $this->attributes['id'] ?? $this->id, md5($avatar));
+            $ttlSeconds = (int) config('filesystems.s3_signed_url_cache_ttl', 600); // default 10 minutes
 
-            return Storage::disk('s3')->temporaryUrl($avatar, $expiration, [
-                'ResponseContentType' => $mime,
-                'ResponseContentDisposition' => 'inline; filename="' . basename($avatar) . '"',
-                'ResponseCacheControl' => 'public, max-age=31536000, immutable',
-            ]);
+            return Cache::remember($cacheKey, $ttlSeconds, function () use ($avatar, $expiration) {
+                // Ensure browsers recognize the response as an image to avoid OpaqueResponseBlocking
+                $extension = strtolower(pathinfo($avatar, PATHINFO_EXTENSION));
+                $extensionToMime = [
+                    'jpg' => 'image/jpeg',
+                    'jpeg' => 'image/jpeg',
+                    'png' => 'image/png',
+                    'gif' => 'image/gif',
+                    'webp' => 'image/webp',
+                    'bmp' => 'image/bmp',
+                    'svg' => 'image/svg+xml',
+                ];
+                $mime = $extensionToMime[$extension] ?? 'application/octet-stream';
+
+                return Storage::disk('s3')->temporaryUrl($avatar, $expiration, [
+                    'ResponseContentType' => $mime,
+                    'ResponseContentDisposition' => 'inline; filename="' . basename($avatar) . '"',
+                    'ResponseCacheControl' => 'public, max-age=31536000, immutable',
+                ]);
+            });
         }
 
         return Storage::disk($disk)->url($avatar);
