@@ -584,7 +584,13 @@ export default function WeekStatusIndex() {
     const getInitials: (name: string) => string = useInitials();
     const weekdays = useWeekdaysLabels(t);
     const breadcrumbs = buildBreadcrumbs(t);
-    const [activeDayMobile, setActiveDayMobile] = React.useState<number>(activeWeekday);
+    // Ensure mobile has a valid active day (1-5). If null, default to today's weekday (clamped to Mon-Fri).
+    function getDefaultActiveDay(): number {
+        const jsDay = new Date().getDay(); // 0 (Sun) .. 6 (Sat)
+        const isoDay = jsDay === 0 ? 7 : jsDay; // 1 (Mon) .. 7 (Sun)
+        return Math.min(5, Math.max(1, isoDay));
+    }
+    const [activeDayMobile, setActiveDayMobile] = React.useState<number>(activeWeekday ?? getDefaultActiveDay());
     const displayWeek = React.useMemo(() => {
         const parts = week.split('-W');
         return parts.length === 2 ? `${parts[1]}` : week;
