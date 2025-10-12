@@ -137,6 +137,12 @@ class StatusCreationService
         if ($request->has('note')) {
             $data['note'] = $request->input('note');
         }
+        if ($request->has('mood')) {
+            $data['mood'] = $request->input('mood');
+        }
+        if ($request->has('transport')) {
+            $data['transport'] = $request->input('transport');
+        }
 
         // If updating existing status, merge with existing data
         if ($existingStatus) {

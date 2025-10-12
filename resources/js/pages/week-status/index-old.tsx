@@ -331,7 +331,7 @@ function WeekStatusCell({
     return (
         <div className="relative w-full group">
             {/* Status and Plan Section */}
-            <div className="flex flex-col gap-1.5 p-2 bg-card rounded-lg border relative">
+            <div className="flex flex-col gap-1.5 p-2 bg-muted/30 rounded-lg border relative">
 
 
                 {/* Status and Actions Row - Side by side when space allows */}
@@ -815,7 +815,7 @@ function WeekView({
                                                                     // Removed unused isPersonal variable
 
                                                                     return (
-                                                                        <div key={userDay.id || index} className="p-2 bg-card rounded-lg border relative">
+                                                                        <div key={userDay.id || index} className="p-2 bg-muted/20 rounded-lg border relative">
                                                                             {/* Copy action - only show if they have data */}
                                                                             <div className="absolute top-2 right-2 opacity-0 text-white group-hover:opacity-100 transition-opacity duration-200">
                                                                                 <Tooltip delayDuration={500}>
@@ -885,7 +885,7 @@ function WeekView({
                                                                 })}
                                                             </div>
                                                         ) : (
-                                                            <div className="p-2 bg-card rounded-lg border border-dashed">
+                                                            <div className="p-2 bg-muted/10 rounded-lg border border-dashed">
                                                                 <span className="text-xs text-muted-foreground">—</span>
                                                             </div>
                                                         )}

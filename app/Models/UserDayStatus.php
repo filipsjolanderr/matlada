@@ -22,6 +22,8 @@ class UserDayStatus extends Model
         'start_location',
         'eat_location',
         'note',
+        'mood',
+        'transport',
         'visibility',
     ];
 
