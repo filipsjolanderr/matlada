@@ -13,7 +13,11 @@ class TrustProxies
      *
      * @var array<int, string>|string|null
      */
-    protected ?array $proxies = ['127.0.0.1', '::1', '172.18.0.0/16'];
+    protected ?array $proxies = [
+        '127.0.0.1',
+        '::1',
+        '172.18.0.0/16', // Dokploy network
+    ];
     /**
      * The headers that should be used to detect proxies.
      *
