@@ -30,8 +30,5 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 RUN php artisan optimize
 
 # ---------- Run the web server ----------
-CMD ["php", "artisan", "octane:frankenphp",
-     "--host=0.0.0.0",
-     "--port=8000",
-     "--workers=auto",
-     "--max-requests=500"]
+
+	CMD ["php", "artisan", "octane:frankenphp", "--host=0.0.0.0", "--port=8000", "--workers=auto", "--max-requests=500"]
