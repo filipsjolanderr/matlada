@@ -23,8 +23,4 @@ RUN chown -R www-data:www-data storage bootstrap/cache && \
     chmod -R ug+rw storage bootstrap/cache
 RUN php artisan optimize
 
-CMD ["php", "artisan", "octane:frankenphp",
-     "--host=0.0.0.0",
-     "--port=8000",
-     "--workers=auto",
-     "--max-requests=500"]
+CMD ["php", "artisan", "octane:frankenphp", "--host=0.0.0.0", "--port=8000", "--workers=auto", "--max-requests=500"]
