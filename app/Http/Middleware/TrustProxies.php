@@ -13,8 +13,7 @@ class TrustProxies
      *
      * @var array<int, string>|string|null
      */
-    protected $proxies = '*';
-
+    protected ?array $proxies = ['127.0.0.1', '::1', '172.18.0.0/16'];
     /**
      * The headers that should be used to detect proxies.
      *
