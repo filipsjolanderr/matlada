@@ -1,46 +1,49 @@
-# Stage 1: Unified Builder
-# The official composer image is based on Alpine Linux.
-FROM composer:2 as builder
+# ---------- Stage 1 : builder ----------
+FROM composer:2 AS builder
+
+# Work inside Laravel root
 WORKDIR /app
 
-# ✅ FINAL FIX: Use Alpine's 'apk' package manager to install Node.js and npm.
+# Install Node and npm (for Vite)
 RUN apk add --no-cache nodejs npm
 
-# Copy all source files
+# Copy everything from project root
 COPY . .
 
-# Install all dependencies (PHP & Node)
+# Install PHP dependencies and Node modules
 RUN composer install --no-dev --optimize-autoloader
-RUN npm install
+RUN npm ci
 
-# Build frontend assets
-RUN npm run build
+# Build front‑end assets using Laravel‑Vite configuration
+RUN test -f vite.config.js && npm run build || echo "No vite.config.js – skipping Vite build"
 
-
-# Stage 2: The final, lean production image
-# This image is based on Debian, so it uses 'apt-get'
+# ---------- Stage 2 : production runtime ----------
 FROM dunglas/frankenphp
 WORKDIR /app
 
-# Install PHP extensions and system dependencies
-RUN apt-get update \
-    && apt-get install -y \
-        libpq-dev \
-        libpq5 \
-    && docker-php-ext-install \
-        pdo pdo_pgsql \
-        pcntl \
-    && apt-get purge -y --auto-remove libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Install needed PHP extensions and system packages
+RUN apt-get update && \
+    apt-get install -y libpq-dev libpq5 && \
+    docker-php-ext-install pdo pdo_pgsql pcntl && \
+    apt-get purge -y --auto-remove libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy the entire built application from the builder stage
-COPY --from=builder /app .
+# Copy built application from builder
+COPY --from=builder /app ./
 
-# Set up production PHP config
+# Correct permissions for cache, logs, etc.
+RUN chown -R www-data:www-data storage bootstrap/cache && \
+    chmod -R ug+rw storage bootstrap/cache
+
+# Use production PHP configuration
 RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
-# Run build-safe optimization commands
-RUN php artisan octane:install --server=frankenphp && \
-    php artisan config:cache && \
-    php artisan route:cache && \
-    php artisan view:cache
+# Optimise & cache Laravel configuration
+RUN php artisan optimize
+
+# Start FrankenPHP webserver (Octane)
+CMD ["php", "artisan", "octane:frankenphp", \
+     "--host=0.0.0.0", \
+     "--port=8000", \
+     "--workers=auto", \
+     "--max-requests=500"]

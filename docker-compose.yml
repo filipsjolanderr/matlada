@@ -4,12 +4,7 @@ services:
     restart: unless-stopped
     command: >
       sh -lc "
-        php artisan migrate --no-interaction --force &&
-        php artisan octane:frankenphp
-          --host=0.0.0.0
-          --port=8000
-          --workers=auto
-          --max-requests=500
+        php artisan migrate --no-interaction --force
       "
 
     environment:
@@ -32,15 +27,15 @@ services:
 
     # Traefik needs to see these labels so it forwards the domain correctly
     labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.matlada.rule=Host(`matlada.sjolander.dev`)"
-      - "traefik.http.routers.matlada.entrypoints=web"
-      - "traefik.http.services.matlada.loadbalancer.server.port=8000"
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=dokploy-network'
+      - 'traefik.http.routers.matlada.rule=Host(`matlada.sjolander.dev`)'
+      - 'traefik.http.routers.matlada.entrypoints=web'
+      - 'traefik.http.services.matlada.loadbalancer.server.port=8000'
 
     # external port mapping is optional because Traefik connects internally
     ports:
-      - "8000:8000"
+      - '8000:8000'
 
   db:
     image: postgres:15
@@ -52,7 +47,7 @@ services:
       POSTGRES_USER: ${DB_USERNAME:-sail}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-sail} -d ${DB_DATABASE:-laravel}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USERNAME:-sail} -d ${DB_DATABASE:-laravel}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -66,4 +61,4 @@ networks:
   app-network:
     driver: bridge
   dokploy-network:
-    external: true     # <-- must match the network that Traefik / Dokploy uses
+    external: true # <-- must match the network that Traefik / Dokploy uses
