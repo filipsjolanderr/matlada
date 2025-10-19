@@ -4,7 +4,12 @@ services:
     restart: unless-stopped
     command: >
       sh -lc "
-        php artisan migrate --no-interaction --force
+        php artisan migrate --no-interaction --force &&
+        php artisan octane:frankenphp
+          --host=0.0.0.0
+          --port=8000
+          --workers=auto
+          --max-requests=500
       "
 
     environment:

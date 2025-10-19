@@ -40,10 +40,3 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 
 # Optimise & cache Laravel configuration
 RUN php artisan optimize
-
-# Start FrankenPHP webserver (Octane)
-CMD ["php", "artisan", "octane:frankenphp", \
-     "--host=0.0.0.0", \
-     "--port=8000", \
-     "--workers=auto", \
-     "--max-requests=500"]
