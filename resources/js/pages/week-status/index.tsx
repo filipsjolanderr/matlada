@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 //
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Icon } from '@/components/ui/icon';
 import { Copy as CopyIcon, ClipboardPaste as PasteIcon, Trash2 as TrashIcon, MoreHorizontal as MoreHorizontalIcon, MapPin as MapPinIcon, UtensilsCrossed as UtensilsIcon, ShoppingCart as ShoppingCartIcon, Home as HomeIcon, StickyNote as StickyNoteIcon, Users as UsersIcon, Clock as ClockIcon, Repeat as RepeatIcon, Check as CheckIcon, Calendar as CalendarIcon, Grid3X3 as GridIcon } from 'lucide-react';
 //
@@ -20,6 +21,7 @@ import { dashboard } from '@/routes';
 import { useI18n } from '@/lib/i18n';
 import { useInitials } from '@/hooks/use-initials';
 import { GroupSelector } from '@/components/group-selector';
+import { DayStatusSummary } from './day-status-summary';
 // import { ButtonGroup } from '@/components/ui/button-group';
 // import { Input } from '@/components/ui/input';
 //
@@ -277,8 +279,8 @@ function WeekStatusCell({
     locationValue,
     eatLocationValue,
     noteValue,
-    isSaving,
-    isTyping,
+    moodValue,
+    transportValue,
     u,
     t,
     submitUpdate,
@@ -291,7 +293,6 @@ function WeekStatusCell({
     openCombos,
     setOpenCombos,
     scheduleLocationSubmit,
-    clearTypingState,
     skipBlurSubmitRef,
     setDraftEatLocations,
     scheduleEatLocationSubmit,
@@ -305,8 +306,8 @@ function WeekStatusCell({
     locationValue: string;
     eatLocationValue: string;
     noteValue: string;
-    isSaving: boolean;
-    isTyping: boolean;
+    moodValue: string;
+    transportValue: string;
     u: { id: number };
     t: (key: string, fallback?: string) => string;
     submitUpdate: (weekday: number, status: StatusValue, arrival_time: string | null, location: string | null, start_location?: string | null, eat_location?: string | null, note?: string | null, mood?: string | null, transport?: string | null, clearDrafts?: boolean) => void;
@@ -319,7 +320,6 @@ function WeekStatusCell({
     openCombos: Record<string, boolean>;
     setOpenCombos: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
     scheduleLocationSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, draftLocation: string | null) => void;
-    clearTypingState: (cellKey: string) => void;
     skipBlurSubmitRef: React.MutableRefObject<Record<string, boolean>>;
     setDraftEatLocations: React.Dispatch<React.SetStateAction<Record<string, string>>>;
     scheduleEatLocationSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, location: string | null, draftEatLocation: string | null) => void;
@@ -329,253 +329,242 @@ function WeekStatusCell({
     const { containerRef, timeInputRef, locationInputRef } = useInputWrapDetection(cellKey);
 
     return (
-        <div className="relative w-full group">
-            {/* Status and Plan Section */}
-            <div className="flex flex-col gap-1.5 p-2 bg-card rounded-lg border relative">
-
-
-                {/* Status and Actions Row - Side by side when space allows */}
-                <div className="flex items-center gap-2 flex-wrap ">
-                    {/* Status Buttons */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="grid grid-cols-2 gap-1 w-full">
-                            {/* Lunchbox Button */}
+        <Popover>
+            <PopoverTrigger asChild>
+                <div className="relative w-full group">
+                    <DayStatusSummary
+                        status={value}
+                        time={timeValue}
+                        location={locationValue}
+                        eatLocation={eatLocationValue}
+                        note={noteValue}
+                        mood={moodValue}
+                        transport={transportValue}
+                        isSelf={true}
+                        t={t}
+                    />
+                </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-[340px] p-4 backdrop-blur-2xl bg-background/60 border-border/40 shadow-2xl" align="start">
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h4 className="font-medium leading-none">{t('Edit Status', 'Redigera status')}</h4>
+                        {/* Clear Button */}
+                        {value && (
                             <Button
-                                variant={value === 'Lunchbox' ? 'default' : 'outline'}
+                                variant="ghost"
                                 size="sm"
-                                className={`flex items-center gap-2 h-auto py-2 px-2 text-xs [--radius:0.95rem] min-w-[40px] ${value === 'Lunchbox'
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 dark:bg-emerald-500 dark:hover:bg-emerald-600'
-                                    : 'text-muted-foreground hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 dark:hover:bg-emerald-950/20 dark:hover:border-emerald-800 dark:hover:text-emerald-300'
-                                    }`}
-                                onClick={() => {
-                                    const newStatus: StatusValue = 'Lunchbox';
-                                    const isClearing = false;
-                                    const nextTime = isClearing ? null : (timeValue || null);
-                                    const nextLocation = isClearing ? null : (locationValue || null);
-                                    const nextEat = isClearing ? null : (eatLocationValue || null);
-                                    const nextNote = isClearing ? null : (noteValue || null);
-                                    submitUpdate(d.value, newStatus, nextTime, nextLocation, undefined, nextEat, nextNote);
-                                }}
+                                onClick={() => clearStatus(d.value)}
+                                className="h-6 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                             >
-                                <span className="text-lg">🍱</span>
-                                <span className="text-xs font-medium">{t('Lunchbox', 'Lunchbox')}</span>
+                                <span className="mr-1.5">🗑️</span>
+                                {t('Clear', 'Rensa')}
                             </Button>
-
-                            {/* Buying Button */}
-                            <Button
-                                variant={value === 'Buying' ? 'default' : 'outline'}
-                                size="sm"
-                                className={`flex items-center gap-2 h-auto py-2 px-2 text-xs [--radius:0.95rem] min-w-[40px] ${value === 'Buying'
-                                    ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600 dark:bg-amber-500 dark:hover:bg-amber-600'
-                                    : 'text-muted-foreground hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 dark:hover:bg-amber-950/20 dark:hover:border-amber-800 dark:hover:text-amber-300'
-                                    }`}
-                                onClick={() => {
-                                    const newStatus: StatusValue = 'Buying';
-                                    const isClearing = false;
-                                    const nextTime = isClearing ? null : (timeValue || null);
-                                    const nextLocation = isClearing ? null : (locationValue || null);
-                                    const nextEat = isClearing ? null : (eatLocationValue || null);
-                                    const nextNote = isClearing ? null : (noteValue || null);
-                                    submitUpdate(d.value, newStatus, nextTime, nextLocation, undefined, nextEat, nextNote);
-                                }}
-                            >
-                                <span className="text-lg">🛒</span>
-                                <span className="text-xs font-medium">{t('Buying', 'Buying')}</span>
-                            </Button>
-
-                            {/* Home Button */}
-                            <Button
-                                variant={value === 'Home' ? 'default' : 'outline'}
-                                size="sm"
-                                className={`flex items-center gap-2 h-auto py-2 px-2 text-xs [--radius:0.95rem] min-w-[40px] ${value === 'Home'
-                                    ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600 dark:bg-rose-500 dark:hover:bg-rose-600'
-                                    : 'text-muted-foreground hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 dark:hover:bg-rose-950/20 dark:hover:border-rose-800 dark:hover:text-rose-300'
-                                    }`}
-                                onClick={() => {
-                                    const newStatus: StatusValue = 'Home';
-                                    const isClearing = true;
-                                    const nextTime = isClearing ? null : (timeValue || null);
-                                    const nextLocation = isClearing ? null : (locationValue || null);
-                                    const nextEat = isClearing ? null : (eatLocationValue || null);
-                                    const nextNote = isClearing ? null : (noteValue || null);
-                                    submitUpdate(d.value, newStatus, nextTime, nextLocation, undefined, nextEat, nextNote);
-                                }}
-                            >
-                                <span className="text-lg">🏠</span>
-                                <span className="text-xs font-medium">{t('Home', 'Home')}</span>
-                            </Button>
-
-                            {/* Away Button */}
-                            <Button
-                                variant={value === 'Away' ? 'default' : 'outline'}
-                                size="sm"
-                                className={`flex items-center gap-2 h-auto py-2 px-2 text-xs [--radius:0.95rem] min-w-[40px] ${value === 'Away'
-                                    ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 dark:bg-indigo-500 dark:hover:bg-indigo-600'
-                                    : 'text-muted-foreground hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 dark:hover:bg-indigo-950/20 dark:hover:border-indigo-800 dark:hover:text-indigo-300'
-                                    }`}
-                                onClick={() => {
-                                    const newStatus: StatusValue = 'Away';
-                                    const isClearing = true;
-                                    const nextTime = isClearing ? null : (timeValue || null);
-                                    const nextLocation = isClearing ? null : (locationValue || null);
-                                    const nextEat = isClearing ? null : (eatLocationValue || null);
-                                    const nextNote = isClearing ? null : (noteValue || null);
-                                    submitUpdate(d.value, newStatus, nextTime, nextLocation, undefined, nextEat, nextNote);
-                                }}
-                            >
-                                <span className="text-lg">👥</span>
-                                <span className="text-xs font-medium">{t("Away", "Away")}</span>
-                            </Button>
-                        </div>
+                        )}
                     </div>
 
-                </div>
+                    {/* Status Selection */}
+                    <div className="grid grid-cols-2 gap-2">
+                        {[
+                            { value: 'Lunchbox', label: t('Lunchbox', 'Lunchbox'), emoji: '🍱', color: 'emerald' },
+                            { value: 'Buying', label: t('Buying', 'Köper'), emoji: '🛒', color: 'amber' },
+                            { value: 'Home', label: t('Home', 'Hemma'), emoji: '🏠', color: 'rose' },
+                            { value: 'Away', label: t('Away', 'Borta'), emoji: '👥', color: 'indigo' },
+                        ].map((option) => {
+                            const isActive = value === option.value;
+                            // Dynamic classes based on color
+                            const activeClass =
+                                option.color === 'emerald' ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20' :
+                                    option.color === 'amber' ? 'bg-amber-600 text-white hover:bg-amber-700 shadow-amber-500/20' :
+                                        option.color === 'rose' ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-500/20' :
+                                            'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-500/20';
 
-                {/* Time and Location - Connected Fields */}
-                <div ref={containerRef} className="flex gap-1 flex-wrap">
-                    <InputGroup ref={timeInputRef} className="w-[6rem] flex-shrink-0 h-8">
-                        <InputGroupAddon align="inline-start" aria-hidden="true">
-                            <Icon iconNode={ClockIcon} className="size-3.5 text-muted-foreground" />
-                        </InputGroupAddon>
-                        <InputGroupInput
-                            id={`arrival-time-${cellKey}`}
-                            className={`${timeValue ? 'text-black dark:text-white' : 'text-muted-foreground'} text-xs`}
-                            type="time"
-                            step={60}
-                            lang="sv-SE"
-                            aria-label={t('Arrival time', 'Ankomsttid')}
-                            title={t('Arrival time', 'Ankomsttid')}
-                            value={timeValue || ''}
-                            onChange={(e) => submitUpdate(d.value, value, (e.target as HTMLInputElement).value || null, locationValue || null)}
-                        />
-                    </InputGroup>
-                    <InputGroup ref={locationInputRef} className="min-w-[100px] flex-1 h-8">
-                        <InputGroupAddon align="inline-start" aria-hidden="true">
-                            <Icon iconNode={MapPinIcon} className="size-3.5 text-muted-foreground" />
-                        </InputGroupAddon>
-                        <InputGroupInput
-                            id={`arrival-location-${cellKey}`}
-                            type="text"
-                            aria-expanded={!!openCombos[cellKey]}
-                            aria-controls={`location-combobox-${cellKey}`}
-                            aria-autocomplete="list"
-                            list="default-locations"
-                            placeholder={t('Location', 'Plats')}
-                            aria-label={t('Location', 'Plats')}
-                            value={locationValue}
-                            className="w-full text-xs"
-                            onChange={(e) => {
-                                const v = (e.target as HTMLInputElement).value;
-                                setDraftLocations((prev) => ({ ...prev, [cellKey]: v }));
-                                setOpenCombos((prev) => ({ ...prev, [cellKey]: true }));
-                                scheduleLocationSubmit(u.id, d.value, value, timeValue || null, v || null);
-                            }}
-                            onFocus={() => setOpenCombos((prev) => ({ ...prev, [cellKey]: true }))}
-                            onBlur={() => {
-                                setTimeout(() => setOpenCombos((prev) => ({ ...prev, [cellKey]: false })), 150);
-                                clearTypingState(cellKey);
-                                if (!skipBlurSubmitRef.current[cellKey]) {
-                                    scheduleLocationSubmit(u.id, d.value, value, timeValue || null, (locationValue || null));
-                                }
-                                if (skipBlurSubmitRef.current[cellKey]) {
-                                    delete skipBlurSubmitRef.current[cellKey];
-                                }
-                            }}
-                        />
-                    </InputGroup>
-                </div>
+                            return (
+                                <Button
+                                    key={option.value}
+                                    variant={isActive ? 'default' : 'outline'}
+                                    className={`h-auto py-3 flex flex-col gap-1 transition-all duration-200 ${isActive ? `${activeClass} shadow-lg scale-[1.02]` : 'hover:bg-accent/50 hover:scale-[1.02]'}`}
+                                    onClick={() => {
+                                        const isClearing = option.value === 'Home' || option.value === 'Away';
+                                        // Keep existing values unless clearing
+                                        submitUpdate(d.value, option.value as StatusValue,
+                                            isClearing ? null : (timeValue || null),
+                                            isClearing ? null : (locationValue || null),
+                                            undefined,
+                                            isClearing ? null : (eatLocationValue || null),
+                                            isClearing ? null : (noteValue || null),
+                                            isClearing ? null : (moodValue || null),
+                                            isClearing ? null : (transportValue || null)
+                                        );
+                                    }}
+                                >
+                                    <span className="text-2xl filter drop-shadow-sm">{option.emoji}</span>
+                                    <span className="text-xs font-medium">{option.label}</span>
+                                </Button>
+                            );
+                        })}
+                    </div>
 
-                {/* Eat Location */}
-                <InputGroup className="h-8">
-                    <InputGroupAddon align="inline-start" aria-hidden="true">
-                        <Icon iconNode={UtensilsIcon} className="size-3.5 text-muted-foreground" />
-                    </InputGroupAddon>
-                    <InputGroupInput
-                        id={`eat-location-inline-${cellKey}`}
-                        type="text"
-                        placeholder={t('Where to eat', 'Var att äta')}
-                        aria-label={t('Where to eat', 'Var att äta')}
-                        value={eatLocationValue}
-                        className="text-xs"
-                        onChange={(e) => {
-                            const v = (e.target as HTMLInputElement).value;
-                            setDraftEatLocations((prev) => ({ ...prev, [cellKey]: v }));
-                            scheduleEatLocationSubmit(u.id, d.value, value, timeValue || null, locationValue || null, v || null);
-                        }}
-                        onBlur={() => {
-                            clearTypingState(cellKey);
-                            scheduleEatLocationSubmit(u.id, d.value, value, timeValue || null, locationValue || null, (eatLocationValue || null));
-                        }}
-                    />
-                </InputGroup>
-
-                {/* Notes and Actions Row */}
-                <div className="flex items-center justify-between gap-2">
-                    <InputGroup aria-labelledby={`notes-label-${cellKey}`} className="h-8 flex-1 max-w-[calc(100%-60px)]">
-                        <span id={`notes-label-${cellKey}`} className="sr-only">{t('Notes', 'Anteckningar')}</span>
-                        <InputGroupAddon align="inline-start" aria-hidden="true">
-                            <Icon iconNode={StickyNoteIcon} className="size-3.5 text-muted-foreground" />
-                        </InputGroupAddon>
-                        <InputGroupInput
-                            id={`notes-${cellKey}`}
-                            placeholder={t('Notes', 'Anteckningar')}
-                            aria-label={t('Notes', 'Anteckningar')}
-                            value={noteValue}
-                            className="text-xs"
-                            onChange={(e) => {
-                                const v = (e.target as HTMLInputElement).value;
-                                setDraftNotes((prev) => ({ ...prev, [cellKey]: v }));
-                                scheduleNoteSubmit(u.id, d.value, value, timeValue || null, locationValue || null, v || null);
-                            }}
-                            onBlur={() => {
-                                clearTypingState(cellKey);
-                                scheduleNoteSubmit(u.id, d.value, value, timeValue || null, locationValue || null, (noteValue || null));
-                            }}
-                        />
-                    </InputGroup>
-
-                    {/* Actions and Status Indicators */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Save confirmation indicator */}
-                        {isSaving && (
-                            <div className="flex items-center gap-1 text-green-600 dark:text-green-400 text-xs">
-                                <Icon iconNode={CheckIcon} className="size-3" />
+                    {/* Details Inputs - Only show if status is selected and not Home/Away */}
+                    {value && value !== 'Home' && value !== 'Away' && (
+                        <div className="space-y-3 pt-2 border-t">
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="col-span-1">
+                                    <label className="text-xs font-medium mb-1 block">{t('Time', 'Tid')}</label>
+                                    <InputGroup>
+                                        <InputGroupInput
+                                            type="time"
+                                            value={timeValue || ''}
+                                            onChange={(e) => submitUpdate(d.value, value, (e.target as HTMLInputElement).value || null, locationValue || null)}
+                                            className="h-8 text-sm"
+                                        />
+                                    </InputGroup>
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-xs font-medium mb-1 block">{t('Location', 'Plats')}</label>
+                                    <InputGroup>
+                                        <InputGroupInput
+                                            type="text"
+                                            value={locationValue}
+                                            placeholder={t('Where?', 'Var?')}
+                                            onChange={(e) => {
+                                                const v = (e.target as HTMLInputElement).value;
+                                                setDraftLocations((prev) => ({ ...prev, [cellKey]: v }));
+                                                scheduleLocationSubmit(u.id, d.value, value, timeValue || null, v || null);
+                                            }}
+                                            onBlur={() => {
+                                                scheduleLocationSubmit(u.id, d.value, value, timeValue || null, (locationValue || null));
+                                            }}
+                                            className="h-8 text-sm"
+                                        />
+                                    </InputGroup>
+                                </div>
                             </div>
-                        )}
-                        {/* Typing indicator */}
-                        {isTyping && !isSaving && (
-                            <div className="size-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse" />
-                        )}
+
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">{t('Eat Location', 'Matplats')}</label>
+                                <InputGroup>
+                                    <InputGroupInput
+                                        type="text"
+                                        value={eatLocationValue}
+                                        placeholder={t('Restaurant?', 'Restaurang?')}
+                                        onChange={(e) => {
+                                            const v = (e.target as HTMLInputElement).value;
+                                            setDraftEatLocations((prev) => ({ ...prev, [cellKey]: v }));
+                                            scheduleEatLocationSubmit(u.id, d.value, value, timeValue || null, locationValue || null, v || null);
+                                        }}
+                                        onBlur={() => {
+                                            scheduleEatLocationSubmit(u.id, d.value, value, timeValue || null, locationValue || null, (eatLocationValue || null));
+                                        }}
+                                        className="h-8 text-sm"
+                                    />
+                                </InputGroup>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Mood & Transport - Always show if status is selected */}
+                    {value && (
+                        <div className="space-y-3 pt-2 border-t">
+                            {/* Moods */}
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">{t('Mood', 'Humör')}</label>
+                                <div className="flex flex-wrap gap-1">
+                                    {[
+                                        { emoji: '☀️', value: 'sunny' },
+                                        { emoji: '☕', value: 'coffee' },
+                                        { emoji: '⚡', value: 'energy' },
+                                        { emoji: '❤️', value: 'good' },
+                                        { emoji: '⭐', value: 'excited' },
+                                        { emoji: '🌙', value: 'tired' }
+                                    ].map((m) => (
+                                        <button
+                                            key={m.value}
+                                            className={`size-8 rounded-full flex items-center justify-center text-lg transition-colors ${moodValue === m.value ? 'bg-blue-100 ring-2 ring-blue-500' : 'hover:bg-muted'}`}
+                                            onClick={() => submitUpdate(d.value, value, timeValue || null, locationValue || null, undefined, eatLocationValue || null, noteValue || null, moodValue === m.value ? null : m.value, transportValue || null)}
+                                        >
+                                            {m.emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Transport */}
+                            <div>
+                                <label className="text-xs font-medium mb-1 block">{t('Transport', 'Transport')}</label>
+                                <div className="flex flex-wrap gap-1">
+                                    {[
+                                        { emoji: '🚗', value: 'car' },
+                                        { emoji: '🚂', value: 'train' },
+                                        { emoji: '🚲', value: 'bike' },
+                                        { emoji: '🚶', value: 'walking' },
+                                        { emoji: '✈️', value: 'plane' },
+                                    ].map((tr) => (
+                                        <button
+                                            key={tr.value}
+                                            className={`size-8 rounded-full flex items-center justify-center text-lg transition-colors ${transportValue === tr.value ? 'bg-green-100 ring-2 ring-green-500' : 'hover:bg-muted'}`}
+                                            onClick={() => submitUpdate(d.value, value, timeValue || null, locationValue || null, undefined, eatLocationValue || null, noteValue || null, moodValue || null, transportValue === tr.value ? null : tr.value)}
+                                        >
+                                            {tr.emoji}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Notes - Always show if status is selected */}
+                    {value && (
+                        <div className="pt-2 border-t">
+                            <label className="text-xs font-medium mb-1 block">{t('Note', 'Anteckning')}</label>
+                            <InputGroup>
+                                <InputGroupInput
+                                    type="text"
+                                    value={noteValue}
+                                    placeholder={t('Add a note...', 'Lägg till en anteckning...')}
+                                    onChange={(e) => {
+                                        const v = (e.target as HTMLInputElement).value;
+                                        setDraftNotes((prev) => ({ ...prev, [cellKey]: v }));
+                                        scheduleNoteSubmit(u.id, d.value, value, timeValue || null, locationValue || null, v || null);
+                                    }}
+                                    onBlur={() => {
+                                        scheduleNoteSubmit(u.id, d.value, value, timeValue || null, locationValue || null, (noteValue || null));
+                                    }}
+                                    className="h-8 text-sm"
+                                />
+                            </InputGroup>
+                        </div>
+                    )}
+
+                    {/* Actions Dropdown */}
+                    <div className="pt-2 border-t flex justify-end">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="size-7" aria-label={t('Actions', 'Åtgärder')}>
-                                    <Icon iconNode={MoreHorizontalIcon} className="size-3.5" />
+                                <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground hover:text-foreground">
+                                    <span className="mr-1.5">⚙️</span>
+                                    {t('Actions', 'Åtgärder')}
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuItem onSelect={() => copyDayData(d.value)}>
-                                    <Icon iconNode={CopyIcon} className="size-4" />
-                                    {t('Copy day', 'Kopiera dag')}
+                            <DropdownMenuContent align="end" className="backdrop-blur-xl bg-background/80">
+                                <DropdownMenuItem onClick={() => copyDayData(d.value)}>
+                                    <span className="mr-2">📋</span>
+                                    {t('Copy', 'Kopiera')}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem disabled={!copiedData} onSelect={() => pasteDayData(d.value)}>
-                                    <Icon iconNode={PasteIcon} className="size-4" />
-                                    {t('Paste day', 'Klistra in dag')}
+                                <DropdownMenuItem onClick={() => pasteDayData(d.value)} disabled={!copiedData}>
+                                    <span className="mr-2">📥</span>
+                                    {t('Paste', 'Klistra in')}
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onSelect={() => setForAllDays(d.value)}>
-                                    <Icon iconNode={RepeatIcon} className="size-4" />
+                                <DropdownMenuItem onClick={() => setForAllDays(d.value)}>
+                                    <span className="mr-2">🔁</span>
                                     {t('Set for coming days', 'Sätt för kommande dagar')}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem variant="destructive" onSelect={() => clearStatus(d.value)}>
-                                    <Icon iconNode={TrashIcon} className="size-4" />
-                                    {t('Clear', 'Rensa')}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
                 </div>
-            </div>
-        </div>
+            </PopoverContent>
+        </Popover>
     );
 }
 
@@ -600,7 +589,6 @@ function WeekView({
     openCombos,
     setOpenCombos,
     scheduleLocationSubmit,
-    clearTypingState,
     skipBlurSubmitRef,
     draftEatLocations,
     setDraftEatLocations,
@@ -608,8 +596,6 @@ function WeekView({
     draftNotes,
     setDraftNotes,
     scheduleNoteSubmit,
-    saveConfirmations,
-    typingStates,
     submitUpdate,
     copyDayData,
     pasteDayData,
@@ -646,7 +632,6 @@ function WeekView({
     openCombos: Record<string, boolean>;
     setOpenCombos: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
     scheduleLocationSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, draftLocation: string | null) => void;
-    clearTypingState: (cellKey: string) => void;
     skipBlurSubmitRef: React.MutableRefObject<Record<string, boolean>>;
     draftEatLocations: Record<string, string>;
     setDraftEatLocations: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -654,8 +639,6 @@ function WeekView({
     draftNotes: Record<string, string>;
     setDraftNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
     scheduleNoteSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, location: string | null, draftNote: string | null) => void;
-    saveConfirmations: Record<string, boolean>;
-    typingStates: Record<string, boolean>;
     submitUpdate: (weekday: number, status: StatusValue, arrival_time: string | null, location: string | null, start_location?: string | null, eat_location?: string | null, note?: string | null, mood?: string | null, transport?: string | null, clearDrafts?: boolean) => void;
     copyDayData: (weekday: number) => void;
     pasteDayData: (weekday: number) => void;
@@ -769,8 +752,8 @@ function WeekView({
                                         const locationValue = (draftLocations[cellKey] ?? (current?.location ?? ''));
                                         const eatLocationValue = (draftEatLocations[cellKey] ?? (current?.eat_location ?? ''));
                                         const noteValue = (draftNotes[cellKey] ?? (current?.note ?? ''));
-                                        const isSaving = saveConfirmations[cellKey];
-                                        const isTyping = typingStates[cellKey];
+                                        const moodValue = current?.mood ?? '';
+                                        const transportValue = current?.transport ?? '';
 
                                         return (
                                             <TableCell key={d.value} className={`group border-l-border/70 align-top p-2 w-[180px] min-w-[180px] max-w-[180px] ${d.value !== activeDayMobile ? 'hidden md:table-cell' : ''}`}>
@@ -783,8 +766,8 @@ function WeekView({
                                                         locationValue={locationValue}
                                                         eatLocationValue={eatLocationValue}
                                                         noteValue={noteValue}
-                                                        isSaving={isSaving}
-                                                        isTyping={isTyping}
+                                                        moodValue={moodValue}
+                                                        transportValue={transportValue}
                                                         u={u}
                                                         t={t}
                                                         submitUpdate={submitUpdate}
@@ -796,7 +779,6 @@ function WeekView({
                                                         setDraftLocations={setDraftLocations}
                                                         setOpenCombos={setOpenCombos}
                                                         scheduleLocationSubmit={scheduleLocationSubmit}
-                                                        clearTypingState={clearTypingState}
                                                         skipBlurSubmitRef={skipBlurSubmitRef}
                                                         setDraftEatLocations={setDraftEatLocations}
                                                         scheduleEatLocationSubmit={scheduleEatLocationSubmit}
@@ -805,87 +787,114 @@ function WeekView({
                                                         openCombos={openCombos}
                                                     />
                                                 ) : (
-                                                    <div className="relative w-full group">
+                                                    <div className="relative w-full group h-full">
                                                         {userDays.length > 0 ? (
-                                                            <div className="space-y-2">
+                                                            <div className="space-y-2 h-full">
                                                                 {userDays.filter((userDay): userDay is NonNullable<typeof userDay> => Boolean(userDay)).map((userDay, index) => {
                                                                     const groupName = userDay.group_id ?
                                                                         (groups.find(g => g.id === userDay.group_id)?.name || `Group ${userDay.group_id}`) :
                                                                         'Personal';
-                                                                    // Removed unused isPersonal variable
 
                                                                     return (
-                                                                        <div key={userDay.id || index} className="p-2 bg-card rounded-lg border relative">
-                                                                            {/* Copy action - only show if they have data */}
-                                                                            <div className="absolute top-2 right-2 opacity-0 text-white group-hover:opacity-100 transition-opacity duration-200">
-                                                                                <Tooltip delayDuration={500}>
-                                                                                    <TooltipTrigger asChild>
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            variant="ghost"
-                                                                                            size="icon"
-                                                                                            className="size-7 hover:bg-white/20 hover:text-white"
-                                                                                            aria-label={t('Copy day', 'Copy day')}
-                                                                                            onClick={() => {
-                                                                                                const data: CopiedData = {
-                                                                                                    status: userDay.status,
-                                                                                                    arrival_time: userDay.arrival_time || null,
-                                                                                                    location: userDay.location || null,
-                                                                                                    start_location: null,
-                                                                                                    eat_location: null,
-                                                                                                    note: null,
-                                                                                                    mood: null,
-                                                                                                    transport: null,
-                                                                                                };
-                                                                                                setCopiedData(data);
-                                                                                                toast.info(t('Copied!', 'Copied!'));
-                                                                                            }}
-                                                                                        >
-                                                                                            <Icon iconNode={CopyIcon} className="size-3.5" />
-                                                                                        </Button>
-                                                                                    </TooltipTrigger>
-                                                                                    <TooltipContent>{t('Copy day', 'Copy day')}</TooltipContent>
-                                                                                </Tooltip>
-                                                                            </div>
-                                                                            <div className="space-y-1.5">
-                                                                                <Badge variant={getStatusBadgeVariant(userDay.status)} className={`${getStatusBadgeClass(userDay.status)} ${getBadgeSizeClass()} font-semibold w-full justify-start`}>
-                                                                                    <span className="flex items-center gap-2">
-                                                                                        {userDay.status === 'Lunchbox' ? (
-                                                                                            <>
-                                                                                                <span>🍱</span>
-                                                                                                <span>{t('Lunchbox', 'Lunchbox')}</span>
-                                                                                            </>
-                                                                                        ) : userDay.status === 'Buying' ? (
-                                                                                            <>
-                                                                                                <span>🛒</span>
-                                                                                                <span>{t('Buying', 'Buying')}</span>
-                                                                                            </>
-                                                                                        ) : userDay.status === 'Home' ? (
-                                                                                            <>
-                                                                                                <span>🏠</span>
-                                                                                                <span>{t('Home', 'Home')}</span>
-                                                                                            </>
-                                                                                        ) : (
-                                                                                            <>
-                                                                                                <span>👥</span>
-                                                                                                <span>{t('Not with ya\'ll', 'Inte med er')}</span>
-                                                                                            </>
+                                                                        <Popover key={userDay.id || index}>
+                                                                            <PopoverTrigger asChild>
+                                                                                <div className="cursor-pointer h-full">
+                                                                                    <DayStatusSummary
+                                                                                        status={userDay.status}
+                                                                                        time={userDay.arrival_time}
+                                                                                        location={userDay.location}
+                                                                                        eatLocation={userDay.eat_location}
+                                                                                        note={userDay.note}
+                                                                                        mood={userDay.mood}
+                                                                                        transport={userDay.transport}
+                                                                                        isSelf={false}
+                                                                                        t={t}
+                                                                                    />
+                                                                                </div>
+                                                                            </PopoverTrigger>
+                                                                            <PopoverContent className="w-[320px] p-0 backdrop-blur-2xl bg-background/60 border-border/40 shadow-2xl overflow-hidden rounded-xl" align="center">
+                                                                                <div className="p-4 flex flex-col gap-4">
+                                                                                    {/* Header with User Info */}
+                                                                                    <div className="flex items-center gap-3 pb-3 border-b border-border/30">
+                                                                                        <div className={`
+                                                                                                            size-10 rounded-full flex items-center justify-center text-sm font-bold shadow-inner
+                                                                                                            ${userDay.status === 'Lunchbox' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' :
+                                                                                                userDay.status === 'Buying' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' :
+                                                                                                    userDay.status === 'Home' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300' :
+                                                                                                        userDay.status === 'Away' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300' :
+                                                                                                            'bg-muted text-muted-foreground'}
+                                                                                                        `}>
+                                                                                            {getInitials(u.name)}
+                                                                                        </div>
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="font-bold text-lg leading-tight">{u.name}</span>
+                                                                                            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                                                                                                {/* Simplified Status Label - No Redundant Info */}
+                                                                                                {userDay.status === 'Lunchbox' ? t('Lunchbox', 'Lunchbox') :
+                                                                                                    userDay.status === 'Buying' ? t('Buying Lunch', 'Buying Lunch') :
+                                                                                                        userDay.status === 'Home' ? t('Working from Home', 'Working from Home') :
+                                                                                                            userDay.status === 'Away' ? t('Away / Off', 'Away / Off') :
+                                                                                                                userDay.status}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {/* Details Grid */}
+                                                                                    <div className="grid grid-cols-2 gap-3">
+                                                                                        {userDay.arrival_time && (
+                                                                                            <div className="flex flex-col gap-1 bg-background/40 p-2 rounded-lg">
+                                                                                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('Time', 'Time')}</span>
+                                                                                                <span className="font-mono font-bold">{userDay.arrival_time}</span>
+                                                                                            </div>
                                                                                         )}
-                                                                                    </span>
-                                                                                </Badge>
-                                                                                <div className="text-xs text-muted-foreground">
-                                                                                    {groupName}
+                                                                                        {userDay.location && (
+                                                                                            <div className="flex flex-col gap-1 bg-background/40 p-2 rounded-lg">
+                                                                                                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{t('Location', 'Location')}</span>
+                                                                                                <span className="font-semibold truncate" title={userDay.location}>{userDay.location}</span>
+                                                                                            </div>
+                                                                                        )}
+                                                                                        {userDay.eat_location && (
+                                                                                            <div className="col-span-2 flex flex-col gap-1 bg-primary/5 p-2 rounded-lg border border-primary/10">
+                                                                                                <span className="text-[10px] uppercase tracking-wider text-primary/80 font-bold flex items-center gap-1">
+                                                                                                    <span>🍽️</span> {t('Eating At', 'Eating At')}
+                                                                                                </span>
+                                                                                                <span className="font-bold text-primary">{userDay.eat_location}</span>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    {/* Note */}
+                                                                                    {userDay.note && (
+                                                                                        <div className="bg-amber-50/50 dark:bg-amber-950/30 p-3 rounded-lg border border-amber-200/30 dark:border-amber-800/30 text-sm italic text-muted-foreground">
+                                                                                            "{userDay.note}"
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Footer: Mood & Transport */}
+                                                                                    {(userDay.mood || userDay.transport) && (
+                                                                                        <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/30">
+                                                                                            {userDay.mood && (
+                                                                                                <div className="flex items-center gap-1.5 text-sm bg-background/40 px-2 py-1 rounded-full" title={t('Mood', 'Mood')}>
+                                                                                                    <span>{userDay.mood === 'sunny' ? '☀️' : userDay.mood === 'coffee' ? '☕' : userDay.mood === 'energy' ? '⚡' : userDay.mood === 'good' ? '❤️' : userDay.mood === 'excited' ? '⭐' : '🌙'}</span>
+                                                                                                    <span className="capitalize text-xs font-medium opacity-80">{userDay.mood}</span>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            {userDay.transport && (
+                                                                                                <div className="flex items-center gap-1.5 text-sm bg-background/40 px-2 py-1 rounded-full" title={t('Transport', 'Transport')}>
+                                                                                                    <span>{userDay.transport === 'car' ? '🚗' : userDay.transport === 'train' ? '🚂' : userDay.transport === 'bike' ? '🚲' : userDay.transport === 'walking' ? '🚶' : '✈️'}</span>
+                                                                                                    <span className="capitalize text-xs font-medium opacity-80">{userDay.transport}</span>
+                                                                                                </div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
-                                                                                <div className="text-xs text-foreground leading-relaxed text-left">
-                                                                                    {generateNaturalStatusText(userDay.status, userDay.arrival_time || null, userDay.location || null, userDay.eat_location || null, userDay.note || null, t)}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
+                                                                            </PopoverContent>
+                                                                        </Popover>
                                                                     );
                                                                 })}
                                                             </div>
                                                         ) : (
-                                                            <div className="p-2 bg-card rounded-lg border border-dashed">
+                                                            <div className="p-2 bg-card/30 rounded-lg border border-dashed min-h-[80px] flex items-center justify-center">
                                                                 <span className="text-xs text-muted-foreground">—</span>
                                                             </div>
                                                         )}
@@ -894,478 +903,17 @@ function WeekView({
                                             </TableCell>
                                         );
                                     })}
-                                </TableRow>
+                                </TableRow >
                             ))}
-                        </TableBody>
-                    </Table>
-                </div>
-            </div>
-        </div>
+                        </TableBody >
+                    </Table >
+                </div >
+            </div >
+        </div >
     );
 }
 
-// TodayView component with enhanced mobile-like design
-function TodayView({
-    users,
-    canEditUserId,
-    t,
-    getInitials,
-    submitUpdate,
-    copyDayData,
-    pasteDayData,
-    setForAllDays,
-    clearStatus,
-    copiedData,
-    getCurrentUserDay,
-    getCellKey,
-    draftLocations,
-    setDraftLocations,
-    setOpenCombos,
-    scheduleLocationSubmit,
-    clearTypingState,
-    skipBlurSubmitRef,
-    draftEatLocations,
-    setDraftEatLocations,
-    scheduleEatLocationSubmit,
-    draftNotes,
-    setDraftNotes,
-    scheduleNoteSubmit,
-    draftMoods,
-    setDraftMoods,
-    scheduleMoodSubmit,
-    draftTransports,
-    setDraftTransports,
-    scheduleTransportSubmit,
-    saveConfirmations,
-    typingStates,
-}: {
-    users: PageProps['users'];
-    canEditUserId: number;
-    t: (key: string, fallback?: string) => string;
-    getInitials: (name: string) => string;
-    submitUpdate: (weekday: number, status: StatusValue, arrival_time: string | null, location: string | null, start_location?: string | null, eat_location?: string | null, note?: string | null, mood?: string | null, transport?: string | null, clearDrafts?: boolean) => void;
-    copyDayData: (weekday: number) => void;
-    pasteDayData: (weekday: number) => void;
-    setForAllDays: (weekday: number) => void;
-    clearStatus: (weekday: number) => void;
-    copiedData: CopiedData | null;
-    getCurrentUserDay: (userId: number, weekday: number) => UserDayRow | undefined;
-    getCellKey: (userId: number, weekday: number) => string;
-    draftLocations: Record<string, string>;
-    setDraftLocations: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-    openCombos: Record<string, boolean>;
-    setOpenCombos: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-    scheduleLocationSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, draftLocation: string | null) => void;
-    clearTypingState: (cellKey: string) => void;
-    skipBlurSubmitRef: React.MutableRefObject<Record<string, boolean>>;
-    draftEatLocations: Record<string, string>;
-    setDraftEatLocations: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-    scheduleEatLocationSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, location: string | null, draftEatLocation: string | null) => void;
-    draftNotes: Record<string, string>;
-    setDraftNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-    scheduleNoteSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, location: string | null, draftNote: string | null) => void;
-    draftMoods: Record<string, string>;
-    setDraftMoods: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-    scheduleMoodSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, location: string | null, draftMood: string | null) => void;
-    draftTransports: Record<string, string>;
-    setDraftTransports: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-    scheduleTransportSubmit: (userId: number, weekday: number, status: StatusValue, timeValue: string | null, location: string | null, draftTransport: string | null) => void;
-    saveConfirmations: Record<string, boolean>;
-    typingStates: Record<string, boolean>;
-}) {
-    const today = new Date();
-    const jsDay = today.getDay();
-    const isoDay = jsDay === 0 ? 7 : jsDay;
-    // If it's Saturday (6) or Sunday (7), show Monday (1)
-    const currentWeekday = (isoDay === 6 || isoDay === 7) ? 1 : Math.min(5, Math.max(1, isoDay));
 
-    const currentUser = users.find(u => u.id === canEditUserId);
-    const currentUserDay = getCurrentUserDay(canEditUserId, currentWeekday);
-    const cellKey = getCellKey(canEditUserId, currentWeekday);
-
-    const value: StatusValue = currentUserDay?.status ?? null;
-    const timeValue = currentUserDay?.arrival_time ?? '';
-    const locationValue = (draftLocations[cellKey] ?? (currentUserDay?.location ?? ''));
-    const eatLocationValue = (draftEatLocations[cellKey] ?? (currentUserDay?.eat_location ?? ''));
-    const noteValue = (draftNotes[cellKey] ?? (currentUserDay?.note ?? ''));
-    const moodValue = (draftMoods[cellKey] ?? (currentUserDay?.mood ?? ''));
-    const transportValue = (draftTransports[cellKey] ?? (currentUserDay?.transport ?? ''));
-    const isSaving = saveConfirmations[cellKey];
-    const isTyping = typingStates[cellKey];
-
-    // Creative status options with emojis and enhanced descriptions
-    const statusOptions = [
-        {
-            value: 'Lunchbox' as StatusValue,
-            label: t('Lunchbox', 'Lunchbox'),
-            icon: UtensilsIcon,
-            emoji: '🍱',
-            description: t('Bringing my own food', 'Tar med egen mat'),
-            color: 'emerald',
-            bgColor: 'bg-emerald-50 dark:bg-emerald-950/20',
-            borderColor: 'border-emerald-200 dark:border-emerald-800',
-            textColor: 'text-emerald-700 dark:text-emerald-300',
-            hoverBgColor: 'hover:bg-emerald-100 dark:hover:bg-emerald-950/40',
-            hoverTextColor: 'hover:text-emerald-800 dark:hover:text-emerald-200',
-            activeBgColor: 'bg-emerald-600 dark:bg-emerald-500',
-            activeTextColor: 'text-white',
-            activeHoverBgColor: 'hover:bg-emerald-700 dark:hover:bg-emerald-400',
-            activeHoverTextColor: 'hover:text-white'
-        },
-        {
-            value: 'Buying' as StatusValue,
-            label: t('Buying', 'Köper'),
-            icon: ShoppingCartIcon,
-            emoji: '🛒',
-            description: t('Getting food from somewhere', 'Köper mat någonstans'),
-            color: 'amber',
-            bgColor: 'bg-amber-50 dark:bg-amber-950/20',
-            borderColor: 'border-amber-200 dark:border-amber-800',
-            textColor: 'text-amber-700 dark:text-amber-300',
-            hoverBgColor: 'hover:bg-amber-100 dark:hover:bg-amber-950/40',
-            hoverTextColor: 'hover:text-amber-800 dark:hover:text-amber-200',
-            activeBgColor: 'bg-amber-600 dark:bg-amber-500',
-            activeTextColor: 'text-white',
-            activeHoverBgColor: 'hover:bg-amber-700 dark:hover:bg-amber-400',
-            activeHoverTextColor: 'hover:text-white'
-        },
-        {
-            value: 'Home' as StatusValue,
-            label: t('Home', 'Hemma'),
-            icon: HomeIcon,
-            emoji: '🏠',
-            description: t('Staying at home today', 'Stannar hemma idag'),
-            color: 'rose',
-            bgColor: 'bg-rose-50 dark:bg-rose-950/20',
-            borderColor: 'border-rose-200 dark:border-rose-800',
-            textColor: 'text-rose-700 dark:text-rose-300',
-            hoverBgColor: 'hover:bg-rose-100 dark:hover:bg-rose-950/40',
-            hoverTextColor: 'hover:text-rose-800 dark:hover:text-rose-200',
-            activeBgColor: 'bg-rose-600 dark:bg-rose-500',
-            activeTextColor: 'text-white',
-            activeHoverBgColor: 'hover:bg-rose-700 dark:hover:bg-rose-400',
-            activeHoverTextColor: 'hover:text-white'
-        },
-        {
-            value: 'Away' as StatusValue,
-            label: t('Away', 'Borta'),
-            icon: UsersIcon,
-            emoji: '👥',
-            description: t('Not with the group today', 'Inte med gruppen idag'),
-            color: 'indigo',
-            bgColor: 'bg-indigo-50 dark:bg-indigo-950/20',
-            borderColor: 'border-indigo-200 dark:border-indigo-800',
-            textColor: 'text-indigo-700 dark:text-indigo-300',
-            hoverBgColor: 'hover:bg-indigo-100 dark:hover:bg-indigo-950/40',
-            hoverTextColor: 'hover:text-indigo-800 dark:hover:text-indigo-200',
-            activeBgColor: 'bg-indigo-600 dark:bg-indigo-500',
-            activeTextColor: 'text-white',
-            activeHoverBgColor: 'hover:bg-indigo-700 dark:hover:bg-indigo-400',
-            activeHoverTextColor: 'hover:text-white'
-        }
-    ];
-
-    // Creative mood/activity options with Unicode icons
-    const moodOptions = [
-        { emoji: '☀️', label: t('Sunny mood', 'Glad stämning'), value: 'sunny' },
-        { emoji: '☕', label: t('Need coffee', 'Behöver kaffe'), value: 'coffee' },
-        { emoji: '⚡', label: t('High energy', 'Hög energi'), value: 'energy' },
-        { emoji: '❤️', label: t('Feeling good', 'Mår bra'), value: 'good' },
-        { emoji: '⭐', label: t('Excited', 'Spänd'), value: 'excited' },
-        { emoji: '🌙', label: t('Tired', 'Trött'), value: 'tired' }
-    ];
-
-    // Transportation options with Unicode icons
-    const transportOptions = [
-        { emoji: '🚗', label: t('Car', 'Bil'), value: 'car' },
-        { emoji: '🚂', label: t('Train', 'Tåg'), value: 'train' },
-        { emoji: '🚲', label: t('Bike', 'Cykel'), value: 'bike' },
-        { emoji: '🚶', label: t('Walking', 'Går'), value: 'walking' },
-        { emoji: '✈️', label: t('Plane', 'Flyg'), value: 'plane' },
-    ];
-
-    return (
-        <div className="space-y-6">
-            {/* Header with user info and date */}
-            <div className="text-center space-y-2">
-                <div className="flex items-center justify-center gap-3">
-                    <Avatar className="h-12 w-12">
-                        <AvatarImage src={(currentUser as UserWithAvatar)?.avatar_url} alt={currentUser?.name} />
-                        <AvatarFallback className="text-lg font-semibold">
-                            {getInitials(currentUser?.name || '')}
-                        </AvatarFallback>
-                    </Avatar>
-                    <div className="text-left">
-                        <h2 className="text-xl font-bold">{currentUser?.name}</h2>
-                        <p className="text-sm text-muted-foreground">
-                            {t('Today', 'Idag')} • {new Date().toLocaleDateString('sv-SE', { weekday: 'long', month: 'short', day: 'numeric' })}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Status Selection */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-center">{t('What are your plans today?', 'Vad har du för planer idag?')}</h3>
-
-                <div className="grid grid-cols-2 gap-3">
-                    {statusOptions.map((option) => {
-                        const isActive = value === option.value;
-                        return (
-                            <Button
-                                key={option.value}
-                                variant={isActive ? 'default' : 'outline'}
-                                className={`h-auto p-4 flex flex-col items-center gap-2 ${isActive
-                                    ? `${option.activeBgColor} ${option.activeTextColor} ${option.activeHoverBgColor} ${option.activeHoverTextColor} border-0`
-                                    : `${option.bgColor} ${option.borderColor} ${option.textColor} ${option.hoverBgColor} ${option.hoverTextColor}`
-                                    }`}
-                                onClick={() => {
-                                    const isClearing = option.value === 'Home' || option.value === 'Away';
-                                    const nextTime = isClearing ? null : (timeValue || null);
-                                    const nextLocation = isClearing ? null : (locationValue || null);
-                                    const nextEat = isClearing ? null : (eatLocationValue || null);
-                                    const nextNote = isClearing ? null : (noteValue || null);
-                                    submitUpdate(currentWeekday, option.value, nextTime, nextLocation, undefined, nextEat, nextNote);
-                                }}
-                            >
-                                <div className="text-2xl">{option.emoji}</div>
-                                <div className="text-sm font-medium">{option.label}</div>
-                                <div className="text-xs opacity-80 text-center">{option.description}</div>
-                            </Button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Details Section - Only show if status is selected */}
-            {value && (
-                <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">{t('Details', 'Detaljer')}</h3>
-
-                    {/* Time and Location */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                                <Icon iconNode={ClockIcon} className="size-4" />
-                                {t('Arrival time', 'Ankomsttid')}
-                            </label>
-                            <InputGroup>
-                                <InputGroupInput
-                                    type="time"
-                                    step={60}
-                                    value={timeValue || ''}
-                                    onChange={(e) => submitUpdate(currentWeekday, value, (e.target as HTMLInputElement).value || null, locationValue || null)}
-                                    className="w-full"
-                                />
-                            </InputGroup>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                                <Icon iconNode={MapPinIcon} className="size-4" />
-                                {t('Location', 'Plats')}
-                            </label>
-                            <InputGroup>
-                                <InputGroupInput
-                                    type="text"
-                                    placeholder={t('Where will you be?', 'Var kommer du att vara?')}
-                                    value={locationValue}
-                                    onChange={(e) => {
-                                        const v = (e.target as HTMLInputElement).value;
-                                        setDraftLocations((prev) => ({ ...prev, [cellKey]: v }));
-                                        setOpenCombos((prev) => ({ ...prev, [cellKey]: true }));
-                                        scheduleLocationSubmit(canEditUserId, currentWeekday, value, timeValue || null, v || null);
-                                    }}
-                                    onFocus={() => setOpenCombos((prev) => ({ ...prev, [cellKey]: true }))}
-                                    onBlur={() => {
-                                        setTimeout(() => setOpenCombos((prev) => ({ ...prev, [cellKey]: false })), 150);
-                                        clearTypingState(cellKey);
-                                        if (!skipBlurSubmitRef.current[cellKey]) {
-                                            scheduleLocationSubmit(canEditUserId, currentWeekday, value, timeValue || null, (locationValue || null));
-                                        }
-                                        if (skipBlurSubmitRef.current[cellKey]) {
-                                            delete skipBlurSubmitRef.current[cellKey];
-                                        }
-                                    }}
-                                    className="w-full"
-                                />
-                            </InputGroup>
-                        </div>
-                    </div>
-
-                    {/* Eat Location */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium flex items-center gap-2">
-                            <Icon iconNode={UtensilsIcon} className="size-4" />
-                            {t('Where to eat', 'Var att äta')}
-                        </label>
-                        <InputGroup>
-                            <InputGroupInput
-                                type="text"
-                                placeholder={t('Restaurant, cafeteria, etc.', 'Restaurang, kafé, etc.')}
-                                value={eatLocationValue}
-                                onChange={(e) => {
-                                    const v = (e.target as HTMLInputElement).value;
-                                    setDraftEatLocations((prev) => ({ ...prev, [cellKey]: v }));
-                                    scheduleEatLocationSubmit(canEditUserId, currentWeekday, value, timeValue || null, locationValue || null, v || null);
-                                }}
-                                onBlur={() => {
-                                    clearTypingState(cellKey);
-                                    scheduleEatLocationSubmit(canEditUserId, currentWeekday, value, timeValue || null, locationValue || null, (eatLocationValue || null));
-                                }}
-                                className="w-full"
-                            />
-                        </InputGroup>
-                    </div>
-
-                    {/* Notes */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium flex items-center gap-2">
-                            <Icon iconNode={StickyNoteIcon} className="size-4" />
-                            {t('Notes', 'Anteckningar')}
-                        </label>
-                        <InputGroup>
-                            <InputGroupInput
-                                type="text"
-                                placeholder={t('Any additional info?', 'Någon ytterligare information?')}
-                                value={noteValue}
-                                onChange={(e) => {
-                                    const v = (e.target as HTMLInputElement).value;
-                                    setDraftNotes((prev) => ({ ...prev, [cellKey]: v }));
-                                    scheduleNoteSubmit(canEditUserId, currentWeekday, value, timeValue || null, locationValue || null, v || null);
-                                }}
-                                onBlur={() => {
-                                    clearTypingState(cellKey);
-                                    scheduleNoteSubmit(canEditUserId, currentWeekday, value, timeValue || null, locationValue || null, (noteValue || null));
-                                }}
-                                className="w-full"
-                            />
-                        </InputGroup>
-                    </div>
-                </div>
-            )}
-
-            {/* Creative Extras Section */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-semibold">{t('How are you feeling?', 'Hur mår du?')}</h3>
-
-                {/* Mood Options */}
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                    {moodOptions.map((mood, index) => {
-                        const isActive = moodValue === mood.value;
-                        return (
-                            <Button
-                                key={index}
-                                variant={isActive ? "default" : "outline"}
-                                size="sm"
-                                className={`h-auto p-3 flex flex-col items-center gap-1 ${isActive
-                                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                    : 'hover:bg-muted'
-                                    }`}
-                                onClick={() => {
-                                    const newMood = isActive ? null : mood.value;
-                                    setDraftMoods((prev) => ({ ...prev, [cellKey]: newMood || '' }));
-                                    scheduleMoodSubmit(canEditUserId, currentWeekday, value, timeValue || null, locationValue || null, newMood);
-                                }}
-                            >
-                                <span className="text-2xl">{mood.emoji}</span>
-                                <span className="text-xs">{mood.label}</span>
-                            </Button>
-                        );
-                    })}
-                </div>
-
-                {/* Transportation Options */}
-                <div className="space-y-2">
-                    <h4 className="text-sm font-medium">{t('How are you getting there?', 'Hur tar du dig dit?')}</h4>
-                    <div className="grid grid-cols-5 gap-2">
-                        {transportOptions.map((transport, index) => {
-                            const isActive = transportValue === transport.value;
-                            return (
-                                <Button
-                                    key={index}
-                                    variant={isActive ? "default" : "outline"}
-                                    size="sm"
-                                    className={`h-auto p-2 flex flex-col items-center gap-1 ${isActive
-                                        ? 'bg-green-600 text-white hover:bg-green-700'
-                                        : 'hover:bg-muted'
-                                        }`}
-                                    onClick={() => {
-                                        const newTransport = isActive ? null : transport.value;
-                                        setDraftTransports((prev) => ({ ...prev, [cellKey]: newTransport || '' }));
-                                        scheduleTransportSubmit(canEditUserId, currentWeekday, value, timeValue || null, locationValue || null, newTransport);
-                                    }}
-                                >
-                                    <span className="text-xl">{transport.emoji}</span>
-                                    <span className="text-xs">{transport.label}</span>
-                                </Button>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="flex gap-2 justify-center">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyDayData(currentWeekday)}
-                    className="flex items-center gap-2"
-                >
-                    <Icon iconNode={CopyIcon} className="size-4" />
-                    {t('Copy', 'Kopiera')}
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!copiedData}
-                    onClick={() => pasteDayData(currentWeekday)}
-                    className="flex items-center gap-2"
-                >
-                    <Icon iconNode={PasteIcon} className="size-4" />
-                    {t('Paste', 'Klistra in')}
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setForAllDays(currentWeekday)}
-                    className="flex items-center gap-2"
-                >
-                    <Icon iconNode={RepeatIcon} className="size-4" />
-                    {t('Set for week', 'Sätt för veckan')}
-                </Button>
-                <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => clearStatus(currentWeekday)}
-                    className="flex items-center gap-2"
-                >
-                    <Icon iconNode={TrashIcon} className="size-4" />
-                    {t('Clear', 'Rensa')}
-                </Button>
-            </div>
-
-            {/* Status Indicators */}
-            {(isSaving || isTyping) && (
-                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    {isSaving && (
-                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                            <Icon iconNode={CheckIcon} className="size-4" />
-                            <span>{t('Saved!', 'Sparat!')}</span>
-                        </div>
-                    )}
-                    {isTyping && !isSaving && (
-                        <div className="flex items-center gap-1">
-                            <div className="size-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse" />
-                            <span>{t('Typing...', 'Skriver...')}</span>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-}
 
 export default function WeekStatusIndex() {
     const { week, group, groups, users, statuses, canEditUserId, activeWeekday } = usePage<PageProps>().props;
@@ -1377,7 +925,7 @@ export default function WeekStatusIndex() {
     );
 
     // View state management
-    const [currentView, setCurrentView] = React.useState<'week' | 'today'>('week');
+    // Removed currentView state as we are always in 'week' view now
 
     // Removed global processing state for seamless UX
     const [draftLocations, setDraftLocations] = React.useState<Record<string, string>>({});
@@ -1399,8 +947,6 @@ export default function WeekStatusIndex() {
 
     // Optimistic updates state
     const [optimisticStatuses, setOptimisticStatuses] = React.useState<Record<string, UserDayRow>>({});
-    const [saveConfirmations, setSaveConfirmations] = React.useState<Record<string, boolean>>({});
-    const [typingStates, setTypingStates] = React.useState<Record<string, boolean>>({});
     // Removed unused wrappedInputs state
     //
     // No global/batch loading states to keep interactions seamless
@@ -1427,26 +973,9 @@ export default function WeekStatusIndex() {
         return optimisticStatuses[cellKey] || getUserDay(statuses, userId, weekday);
     }
 
-    // Show save confirmation briefly
-    function showSaveConfirmation(cellKey: string) {
-        setSaveConfirmations(prev => ({ ...prev, [cellKey]: true }));
-        setTimeout(() => {
-            setSaveConfirmations(prev => {
-                const next = { ...prev };
-                delete next[cellKey];
-                return next;
-            });
-        }, 2000);
-    }
 
-    // Clear typing state when user leaves field
-    function clearTypingState(cellKey: string) {
-        setTypingStates(prev => {
-            const next = { ...prev };
-            delete next[cellKey];
-            return next;
-        });
-    }
+
+
 
     function submitUpdate(weekday: number, status: StatusValue, arrival_time: string | null, location: string | null, start_location?: string | null, eat_location?: string | null, note?: string | null, mood?: string | null, transport?: string | null, clearDrafts: boolean = true) {
         // Ensure we always persist all fields. If some are omitted, pull from current row or draft.
@@ -1534,7 +1063,6 @@ export default function WeekStatusIndex() {
                         delete next[cellKey];
                         return next;
                     });
-                    showSaveConfirmation(cellKey);
                 },
                 onError: () => {
                     // Rollback optimistic update on error
@@ -1561,25 +1089,9 @@ export default function WeekStatusIndex() {
 
         // Only start debounce if there's actual content (first character typed)
         if (draftLocation && draftLocation.trim().length > 0) {
-            // Set typing state
-            setTypingStates(prev => ({ ...prev, [key]: true }));
-
             locationDebounceRef.current[key] = setTimeout(() => {
-                // Clear typing state before submitting
-                setTypingStates(prev => {
-                    const next = { ...prev };
-                    delete next[key];
-                    return next;
-                });
                 submitUpdate(weekday, status, timeValue, draftLocation, undefined, undefined, undefined, undefined, undefined, false);
             }, 1500); // Reduced from 2000ms to 1500ms for better UX
-        } else {
-            // Clear typing state if input is empty
-            setTypingStates(prev => {
-                const next = { ...prev };
-                delete next[key];
-                return next;
-            });
         }
     }
 
@@ -1593,25 +1105,9 @@ export default function WeekStatusIndex() {
 
         // Only start debounce if there's actual content (first character typed)
         if (draftEatLocation && draftEatLocation.trim().length > 0) {
-            // Set typing state
-            setTypingStates(prev => ({ ...prev, [key]: true }));
-
             eatLocationDebounceRef.current[key] = setTimeout(() => {
-                // Clear typing state before submitting
-                setTypingStates(prev => {
-                    const next = { ...prev };
-                    delete next[key];
-                    return next;
-                });
                 postPartialUpdate(weekday, { eat_location: draftEatLocation }, status, timeValue, location);
             }, 1500); // Reduced from 2000ms to 1500ms for better UX
-        } else {
-            // Clear typing state if input is empty
-            setTypingStates(prev => {
-                const next = { ...prev };
-                delete next[key];
-                return next;
-            });
         }
     }
 
@@ -1625,25 +1121,9 @@ export default function WeekStatusIndex() {
 
         // Only start debounce if there's actual content (first character typed)
         if (draftNote && draftNote.trim().length > 0) {
-            // Set typing state
-            setTypingStates(prev => ({ ...prev, [key]: true }));
-
             noteDebounceRef.current[key] = setTimeout(() => {
-                // Clear typing state before submitting
-                setTypingStates(prev => {
-                    const next = { ...prev };
-                    delete next[key];
-                    return next;
-                });
                 postPartialUpdate(weekday, { note: draftNote }, status, timeValue, location);
             }, 1000); // Reduced from 1200ms to 1000ms for better UX
-        } else {
-            // Clear typing state if input is empty
-            setTypingStates(prev => {
-                const next = { ...prev };
-                delete next[key];
-                return next;
-            });
         }
     }
 
@@ -1655,25 +1135,9 @@ export default function WeekStatusIndex() {
 
         // Only start debounce if there's actual content (first character typed)
         if (draftMood && draftMood.trim().length > 0) {
-            // Set typing state
-            setTypingStates(prev => ({ ...prev, [key]: true }));
-
             moodDebounceRef.current[key] = setTimeout(() => {
-                // Clear typing state before submitting
-                setTypingStates(prev => {
-                    const next = { ...prev };
-                    delete next[key];
-                    return next;
-                });
                 postPartialUpdate(weekday, { mood: draftMood }, status, timeValue, location);
             }, 1000);
-        } else {
-            // Clear typing state if input is empty
-            setTypingStates(prev => {
-                const next = { ...prev };
-                delete next[key];
-                return next;
-            });
         }
     }
 
@@ -1685,25 +1149,9 @@ export default function WeekStatusIndex() {
 
         // Only start debounce if there's actual content (first character typed)
         if (draftTransport && draftTransport.trim().length > 0) {
-            // Set typing state
-            setTypingStates(prev => ({ ...prev, [key]: true }));
-
             transportDebounceRef.current[key] = setTimeout(() => {
-                // Clear typing state before submitting
-                setTypingStates(prev => {
-                    const next = { ...prev };
-                    delete next[key];
-                    return next;
-                });
                 postPartialUpdate(weekday, { transport: draftTransport }, status, timeValue, location);
             }, 1000);
-        } else {
-            // Clear typing state if input is empty
-            setTypingStates(prev => {
-                const next = { ...prev };
-                delete next[key];
-                return next;
-            });
         }
     }
 
@@ -1833,7 +1281,6 @@ export default function WeekStatusIndex() {
             preserveScroll: true,
             preserveState: false,
             onSuccess: () => {
-                showSaveConfirmation(key);
                 toast.success(t('Cleared', 'Cleared'));
             },
             onError: () => {
@@ -1971,15 +1418,18 @@ export default function WeekStatusIndex() {
 
     function setForAllDays(weekday: number) {
         const current = getCurrentUserDay(canEditUserId, weekday);
+        const cellKey = getCellKey(canEditUserId, weekday);
+
+        // Get values from current day (or drafts if they exist)
         const data: CopiedData = {
             status: current?.status ?? null,
             arrival_time: current?.arrival_time ?? null,
-            location: current?.location ?? null,
-            start_location: null,
-            eat_location: null,
-            note: null,
-            mood: null,
-            transport: null,
+            location: draftLocations[cellKey] ?? (current?.location ?? null),
+            start_location: current?.start_location ?? null,
+            eat_location: draftEatLocations[cellKey] ?? (current?.eat_location ?? null),
+            note: draftNotes[cellKey] ?? (current?.note ?? null),
+            mood: draftMoods[cellKey] ?? (current?.mood ?? null),
+            transport: draftTransports[cellKey] ?? (current?.transport ?? null),
         };
 
         // Only apply to coming days (future days in the same week)
@@ -1993,7 +1443,17 @@ export default function WeekStatusIndex() {
         const delayMs = 250;
         otherDays.forEach((day, index) => {
             setTimeout(() => {
-                submitUpdate(day, data.status, data.arrival_time, data.location);
+                submitUpdate(
+                    day,
+                    data.status,
+                    data.arrival_time,
+                    data.location,
+                    data.start_location,
+                    data.eat_location,
+                    data.note,
+                    data.mood,
+                    data.transport
+                );
             }, index * delayMs);
         });
 
@@ -2007,112 +1467,52 @@ export default function WeekStatusIndex() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`${t('Week', 'Week')} ${displayWeek}`} />
             <div className="p-3">
-                {/* View Toggle */}
-                <div className="flex gap-2 mb-6">
-                    <Button
-                        variant={currentView === 'week' ? 'default' : 'outline'}
-                        onClick={() => setCurrentView('week')}
-                        className="flex items-center gap-2"
-                    >
-                        <Icon iconNode={GridIcon} className="size-4" />
-                        {t('Week View', 'Veckovy')}
-                    </Button>
-                    <Button
-                        variant={currentView === 'today' ? 'default' : 'outline'}
-                        onClick={() => setCurrentView('today')}
-                        className="flex items-center gap-2"
-                    >
-                        <Icon iconNode={CalendarIcon} className="size-4" />
-                        {t('Today View', 'Dagens vy')}
-                    </Button>
-                </div>
-
                 {/* Content */}
-                {currentView === 'week' ? (
-                    <WeekView
-                        week={week}
-                        group={group}
-                        groups={groups}
-                        users={users}
-                        statuses={statuses}
-                        canEditUserId={canEditUserId}
-                        activeDayMobile={activeDayMobile}
-                        setActiveDayMobile={setActiveDayMobile}
-                        weekdays={weekdays}
-                        displayWeek={displayWeek}
-                        t={t}
-                        getInitials={getInitials}
-                        getCurrentUserDay={getCurrentUserDay}
-                        getCellKey={getCellKey}
-                        draftLocations={draftLocations}
-                        setDraftLocations={setDraftLocations}
-                        openCombos={openCombos}
-                        setOpenCombos={setOpenCombos}
-                        scheduleLocationSubmit={scheduleLocationSubmit}
-                        clearTypingState={clearTypingState}
-                        skipBlurSubmitRef={skipBlurSubmitRef}
-                        draftEatLocations={draftEatLocations}
-                        setDraftEatLocations={setDraftEatLocations}
-                        scheduleEatLocationSubmit={scheduleEatLocationSubmit}
-                        draftNotes={draftNotes}
-                        setDraftNotes={setDraftNotes}
-                        scheduleNoteSubmit={scheduleNoteSubmit}
-                        saveConfirmations={saveConfirmations}
-                        typingStates={typingStates}
-                        submitUpdate={submitUpdate}
-                        copyDayData={copyDayData}
-                        pasteDayData={pasteDayData}
-                        setForAllDays={setForAllDays}
-                        clearStatus={clearStatus}
-                        copiedData={copiedData}
-                        setCopiedData={setCopiedData}
-                        processedStatuses={processedStatuses}
-                        getDateFromIsoWeek={getDateFromIsoWeek}
-                        isSameLocalDate={isSameLocalDate}
-                        formatDateYMD={formatDateYMD}
-                        getDisplayName={getDisplayName}
-                        generateNaturalStatusText={generateNaturalStatusText}
-                        getStatusBadgeVariant={getStatusBadgeVariant}
-                        getStatusBadgeClass={getStatusBadgeClass}
-                        getBadgeSizeClass={getBadgeSizeClass}
-                    />
-                ) : (
-                    <TodayView
-                        users={users}
-                        canEditUserId={canEditUserId}
-                        t={t}
-                        getInitials={getInitials}
-                        submitUpdate={submitUpdate}
-                        copyDayData={copyDayData}
-                        pasteDayData={pasteDayData}
-                        setForAllDays={setForAllDays}
-                        clearStatus={clearStatus}
-                        copiedData={copiedData}
-                        getCurrentUserDay={getCurrentUserDay}
-                        getCellKey={getCellKey}
-                        draftLocations={draftLocations}
-                        setDraftLocations={setDraftLocations}
-                        openCombos={openCombos}
-                        setOpenCombos={setOpenCombos}
-                        scheduleLocationSubmit={scheduleLocationSubmit}
-                        clearTypingState={clearTypingState}
-                        skipBlurSubmitRef={skipBlurSubmitRef}
-                        draftEatLocations={draftEatLocations}
-                        setDraftEatLocations={setDraftEatLocations}
-                        scheduleEatLocationSubmit={scheduleEatLocationSubmit}
-                        draftNotes={draftNotes}
-                        setDraftNotes={setDraftNotes}
-                        scheduleNoteSubmit={scheduleNoteSubmit}
-                        draftMoods={draftMoods}
-                        setDraftMoods={setDraftMoods}
-                        scheduleMoodSubmit={scheduleMoodSubmit}
-                        draftTransports={draftTransports}
-                        setDraftTransports={setDraftTransports}
-                        scheduleTransportSubmit={scheduleTransportSubmit}
-                        saveConfirmations={saveConfirmations}
-                        typingStates={typingStates}
-                    />
-                )}
+                <WeekView
+                    week={week}
+                    group={group}
+                    groups={groups}
+                    users={users}
+                    statuses={statuses}
+                    canEditUserId={canEditUserId}
+                    activeDayMobile={activeDayMobile}
+                    setActiveDayMobile={setActiveDayMobile}
+                    weekdays={weekdays}
+                    displayWeek={displayWeek}
+                    t={t}
+                    getInitials={getInitials}
+                    getCurrentUserDay={getCurrentUserDay}
+                    getCellKey={getCellKey}
+                    draftLocations={draftLocations}
+                    setDraftLocations={setDraftLocations}
+                    openCombos={openCombos}
+                    setOpenCombos={setOpenCombos}
+                    scheduleLocationSubmit={scheduleLocationSubmit}
+                    skipBlurSubmitRef={skipBlurSubmitRef}
+                    draftEatLocations={draftEatLocations}
+                    setDraftEatLocations={setDraftEatLocations}
+                    scheduleEatLocationSubmit={scheduleEatLocationSubmit}
+                    draftNotes={draftNotes}
+                    setDraftNotes={setDraftNotes}
+                    scheduleNoteSubmit={scheduleNoteSubmit}
+
+                    submitUpdate={submitUpdate}
+                    copyDayData={copyDayData}
+                    pasteDayData={pasteDayData}
+                    setForAllDays={setForAllDays}
+                    clearStatus={clearStatus}
+                    copiedData={copiedData}
+                    setCopiedData={setCopiedData}
+                    processedStatuses={processedStatuses}
+                    getDateFromIsoWeek={getDateFromIsoWeek}
+                    isSameLocalDate={isSameLocalDate}
+                    formatDateYMD={formatDateYMD}
+                    getDisplayName={getDisplayName}
+                    generateNaturalStatusText={generateNaturalStatusText}
+                    getStatusBadgeVariant={getStatusBadgeVariant}
+                    getStatusBadgeClass={getStatusBadgeClass}
+                    getBadgeSizeClass={getBadgeSizeClass}
+                />
 
                 <datalist id="default-locations">
                     {defaultLocations.map((loc) => (
